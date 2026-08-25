@@ -7,8 +7,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from logalizer import reporting, indexpatterns
+from logalizer import init, ping
 from logalizer.client import Client, ClientError
-from logalizer.config import build_settings, load_config
+from logalizer.config import build_settings, config_file_path, load_config
 
 
 class UsageError(Exception):
@@ -56,6 +57,9 @@ USAGE
     logalizer --list-indices [--space SPACE]     # print index patterns
     logalizer --list-fields --index PATTERN      # print fields (best-effort)
     logalizer --help-json                        # machine-readable help
+    logalizer --init                             # write config.ini (wizard)
+    logalizer --init --url URL --username U --password P [--space S] [--index P] [--insecure]
+    logalizer --ping                             # test config + connectivity
 
 EXAMPLES (copy-paste ready)
     # Last 24h of errors from brain service, clean columns
@@ -99,6 +103,16 @@ DISCOVERY OPTIONS (exit 0; print to stdout, one per line)
     --list-indices         list index patterns in --space
     --list-fields          list fields for --index (best-effort, may be partial)
 
+
+CONFIGURATION & DIAGNOSTICS
+    --init                write ~/.config/logalizer/config.ini (0600).
+                          Interactive wizard when url/username/password omitted;
+                          non-interactive when all three are given via flags.
+    --ping                health check: config -> TLS -> auth -> space -> index.
+                          Prints one line per check; exit 0 all good, else first
+                          failure (2 config, 3 auth, 5 network).
+    --url, --username, --password   used only by --init (never for export).
+
 CREDENTIALS (never pass on command line)
     KIBANA_URL, KIBANA_USERNAME, KIBANA_PASSWORD   # env vars (recommended)
     or ~/.config/logalizer/config.ini              # 0600 perms
@@ -139,6 +153,11 @@ def help_json():
              "example": "@timestamp,level,msg"},
             {"flag": "--out", "alias": "-o", "type": "path", "default": "stdout"},
             {"flag": "--space", "alias": "-s", "type": "string", "default": "default"},
+            {"flag": "--init", "type": "bool", "default": "false"},
+            {"flag": "--ping", "type": "bool", "default": "false"},
+            {"flag": "--url", "type": "string", "used_by": "--init"},
+            {"flag": "--username", "type": "string", "used_by": "--init"},
+            {"flag": "--password", "type": "string", "used_by": "--init"},
         ],
         "exit_codes": {"0": "success", "2": "usage", "3": "auth/permission",
                        "4": "job failed/timeout", "5": "network"},
@@ -169,6 +188,11 @@ def build_parser():
     p.add_argument("--list-indices", action="store_true", help="list index patterns")
     p.add_argument("--list-fields", action="store_true", help="list fields for --index")
     p.add_argument("--help-json", action="store_true", help="machine-readable help")
+    p.add_argument("--init", action="store_true", help="configure and write config.ini")
+    p.add_argument("--ping", action="store_true", help="test config + connectivity")
+    p.add_argument("--url", help="Kibana URL (for --init)")
+    p.add_argument("--username", help="username (for --init)")
+    p.add_argument("--password", help="password (for --init)")
     return p
 
 
@@ -190,6 +214,12 @@ def main(argv=None):
             os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
             timeout=args.timeout, insecure=(True if args.insecure else None),
         )
+
+        if args.init:
+            return init.run_init(args, os.environ, config_path=None)
+
+        if args.ping:
+            return ping.run_ping(settings, config_file_path())
 
         if not settings.url or not settings.username or not settings.password:
             return _err(

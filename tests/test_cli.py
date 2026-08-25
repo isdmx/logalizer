@@ -90,5 +90,29 @@ class TestMainReadsEnv(unittest.TestCase):
         self.assertFalse(s.insecure)
 
 
+class TestInitPingDispatch(unittest.TestCase):
+    def test_init_flag_dispatches(self):
+        with mock.patch("logalizer.cli.init.run_init", return_value=0) as ri, \
+             mock.patch("logalizer.cli.load_config", return_value={}):
+            rc = cli.main(["--init", "--url", "https://k.example",
+                           "--username", "u", "--password", "p"])
+        self.assertEqual(rc, 0)
+        ri.assert_called_once()
+
+    def test_ping_flag_dispatches(self):
+        with mock.patch("logalizer.cli.ping.run_ping", return_value=0) as rp, \
+             mock.patch("logalizer.cli.load_config", return_value={}):
+            rc = cli.main(["--ping"])
+        self.assertEqual(rc, 0)
+        rp.assert_called_once()
+
+    def test_help_json_lists_new_flags(self):
+        hj = cli.help_json()
+        flags = [f["flag"] for f in hj["flags"]]
+        self.assertIn("--init", flags)
+        self.assertIn("--ping", flags)
+        self.assertIn("--url", flags)
+
+
 if __name__ == "__main__":
     unittest.main()
