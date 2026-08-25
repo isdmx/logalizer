@@ -50,12 +50,13 @@ One-time setup on PyPI: project settings → Publishing → add a "pending
 publisher" with owner `isdmx`, repository `logalizer`, workflow `publish.yml`,
 environment `pypi`.
 
-After that, cut a release with:
+To cut a release, either use the GitHub Actions UI (Actions → "Release" → "Run
+workflow", enter a version like 0.1.0) or from a local checkout:
 
     git tag v0.1.0
     git push --tags
 
-CI builds the sdist + wheel and uploads them to PyPI automatically.
+Either way, CI builds the sdist + wheel and uploads them to PyPI automatically.
 
 ## License
 
