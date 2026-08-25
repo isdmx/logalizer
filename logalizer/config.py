@@ -68,9 +68,11 @@ def build_settings(env, cfg, space=None, index=None, fields=None,
         resolved_timeout = 120
 
     if insecure is None:
-        insecure = _as_bool(env.get("KIBANA_INSECURE"))
-    if not insecure:
-        insecure = _as_bool(kb.get("insecure"))
+        env_val = env.get("KIBANA_INSECURE")
+        if env_val is not None:
+            insecure = _as_bool(env_val)
+        else:
+            insecure = _as_bool(kb.get("insecure"))
 
     return Settings(
         url=url,

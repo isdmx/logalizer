@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest import mock
 
-from logalizer import cli
+from logalizer import cli, config
 
 
 class TestParseDuration(unittest.TestCase):
@@ -68,6 +68,26 @@ class TestMainReadsEnv(unittest.TestCase):
             self.assertEqual(kw[0][0], "https://k.example")
             self.assertEqual(kw[0][1], "u")
             self.assertEqual(kw[0][2], "p")
+
+    def test_kibana_insecure_env_reaches_client(self):
+        env = {
+            "KIBANA_URL": "https://k.example",
+            "KIBANA_USERNAME": "u",
+            "KIBANA_PASSWORD": "p",
+            "KIBANA_INSECURE": "1",
+        }
+        with mock.patch.dict(os.environ, env, clear=True), \
+             mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.Client") as ClientMock, \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value=None):
+            cli.main(["--index", "logs-*"])
+            ClientMock.assert_called_once()
+            self.assertTrue(ClientMock.call_args.kwargs.get("insecure"))
+
+    def test_kibana_insecure_false_overrides_config_true(self):
+        cfg = {"kibana": {"insecure": "true"}, "defaults": {}}
+        s = config.build_settings({"KIBANA_INSECURE": "0"}, cfg, space=None)
+        self.assertFalse(s.insecure)
 
 
 if __name__ == "__main__":

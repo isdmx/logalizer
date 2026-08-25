@@ -187,7 +187,7 @@ def main(argv=None):
     cfg = load_config()
     settings = build_settings(
         os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
-        timeout=args.timeout, insecure=args.insecure,
+        timeout=args.timeout, insecure=(True if args.insecure else None),
     )
 
     if not settings.url or not settings.username or not settings.password:
