@@ -4,6 +4,7 @@ from logalizer.indexpatterns import (
     list_spaces,
     list_index_patterns,
     resolve_index_pattern,
+    list_fields,
 )
 
 
@@ -47,6 +48,24 @@ class TestResolveIndexPattern(unittest.TestCase):
     def test_unknown_pattern_returns_none(self):
         c = _Fake([(200, '{"saved_objects":[]}')])
         self.assertIsNone(resolve_index_pattern(c, "default", "nope*"))
+
+
+class TestListFields(unittest.TestCase):
+    def test_uses_field_caps_when_present(self):
+        c = _Fake([
+            (200, '{"fields":[{"name":"@timestamp","type":"date"},{"name":"msg","type":"text"}]}'),
+        ])
+        result = list_fields(c, "default", "logs-*")
+        self.assertEqual(result, ["@timestamp", "msg"])
+
+    def test_falls_back_to_field_attrs(self):
+        c = _Fake([
+            (200, '{"fields":[]}'),
+            (200, '{"saved_objects":[{"attributes":{"title":"logs-*",'
+                  '"fieldAttrs":"{\\"level\\":{\\"count\\":1},\\"msg\\":{\\"count\\":1}}"}}]}'),
+        ])
+        result = list_fields(c, "default", "logs-*")
+        self.assertEqual(result, ["level", "msg"])
 
 
 if __name__ == "__main__":

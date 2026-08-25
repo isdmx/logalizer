@@ -27,6 +27,34 @@ def resolve_index_pattern(client, space, pattern):
     return None
 
 
+def list_fields(client, space, pattern):
+    """Best-effort field listing. Tries _fields_for_wildcard, then falls back
+    to the index-pattern's fieldAttrs. May return [] for read-only roles."""
+    path = (f"/s/{space}/api/index_patterns/_fields_for_wildcard"
+            f"?pattern={pattern}&meta_fields=_source")
+    status, body = client.request("GET", path)
+    if status == 200:
+        try:
+            fields = json.loads(body).get("fields", [])
+            if fields:
+                return [f["name"] for f in fields]
+        except (ValueError, KeyError):
+            pass
+
+    # fallback: index-pattern saved object fieldAttrs
+    path = f"/s/{space}/api/saved_objects/_find?type=index-pattern&per_page=100"
+    status, body = client.request("GET", path)
+    _raise_for_status(status, body, "list fields")
+    for so in json.loads(body).get("saved_objects", []):
+        if so["attributes"].get("title") == pattern:
+            raw = so["attributes"].get("fieldAttrs", "{}")
+            try:
+                return sorted(json.loads(raw).keys())
+            except (ValueError, TypeError):
+                return []
+    return []
+
+
 def _raise_for_status(status, body, what):
     from logalizer.client import ClientError
     if status == 401:
