@@ -1,6 +1,7 @@
 """Command-line interface for logalizer."""
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
@@ -185,7 +186,7 @@ def main(argv=None):
 
     cfg = load_config()
     settings = build_settings(
-        {}, cfg, space=args.space, index=args.index, fields=args.fields,
+        os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
         timeout=args.timeout, insecure=args.insecure,
     )
 

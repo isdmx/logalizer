@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest import mock
 
 from logalizer import cli
 
@@ -43,6 +45,29 @@ class TestHelpJson(unittest.TestCase):
         self.assertIn("flags", hj)
         self.assertIn("exit_codes", hj)
         self.assertIn("io_contract", hj)
+
+
+class TestMainReadsEnv(unittest.TestCase):
+    def test_env_credentials_reach_settings(self):
+        # Patch load_config + Client so no real network/config is touched.
+        env = {
+            "KIBANA_URL": "https://k.example",
+            "KIBANA_USERNAME": "u",
+            "KIBANA_PASSWORD": "p",
+        }
+        with mock.patch.dict(os.environ, env, clear=True), \
+             mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.Client") as ClientMock, \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value=None):
+            rc = cli.main(["--index", "logs-*"])
+            # resolve_index_pattern returned None → usage error exit 2,
+            # but Client must have been constructed with env credentials.
+            self.assertEqual(rc, 2)
+            ClientMock.assert_called_once()
+            kw = ClientMock.call_args
+            self.assertEqual(kw[0][0], "https://k.example")
+            self.assertEqual(kw[0][1], "u")
+            self.assertEqual(kw[0][2], "p")
 
 
 if __name__ == "__main__":
