@@ -17,13 +17,13 @@ def run_ping(settings, config_path):
     if config_path.exists():
         print(f"  ✓ config: {config_path}")
     else:
-        print(f"  ✗ config: {config_path} (not found — run `logalizer --init`)")
-        return 2
+        print(f"  - no config file (using env vars) — run `logalizer --init` to persist")
 
     if settings.url and settings.username and settings.password:
         print(f"  ✓ credentials present (user={settings.username}, password=***)")
     else:
-        print("  ✗ missing credentials (url/username/password) — run `logalizer --init`")
+        print("  ✗ missing credentials (url/username/password) — run `logalizer --init` "
+              "or set KIBANA_URL/KIBANA_USERNAME/KIBANA_PASSWORD")
         return 2
 
     client = Client(settings.url, settings.username, settings.password,

@@ -33,10 +33,15 @@ class TestPing(unittest.TestCase):
             d.write_text("[kibana]\nurl = x\n")
         return d
 
-    def test_missing_config_returns_2(self):
+    def test_missing_config_with_creds_proceeds(self):
         s = _settings()
-        rc = ping.run_ping(s, Path(tempfile.mkdtemp()) / "nope.ini")
-        self.assertEqual(rc, 2)
+        fake = _FakeClient([(200, '{"version":{"number":"7.17.29"}}'),
+                            (200, '{"username":"u","roles":["reporting_user"]}'),
+                            (200, '[{"id":"default"}]'),
+                            (200, '{"saved_objects":[{"id":"abc","attributes":{"title":"logs-*"}}]}')])
+        with mock.patch("logalizer.ping.Client", return_value=fake):
+            rc = ping.run_ping(s, Path(tempfile.mkdtemp()) / "nope.ini")
+        self.assertEqual(rc, 0)
 
     def test_missing_creds_returns_2(self):
         s = _settings(username="", password="")
