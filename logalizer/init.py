@@ -33,12 +33,13 @@ def run_init(args, env, config_path=None):
 
     if interactive:
         print("Configuring logalizer (blank = keep existing)", file=sys.stderr)
-        if not url:
-            url = _prompt("Kibana URL", url)
-        if not username:
-            username = _prompt("Username", username)
-        if not password:
-            password = _prompt_password(password)
+        url = _prompt("Kibana URL", url)
+        username = _prompt("Username", username)
+        password = _prompt_password(password)
+        space = _prompt("Space", space)
+        index = _prompt("Default index pattern (blank = none)", index)
+        ans = _prompt("Skip TLS verification? (y/N)", "y" if insecure else "")
+        insecure = ans.strip().lower() in ("y", "yes")
 
     if not url or not username or not password:
         print("logalizer: url, username and password are required.", file=sys.stderr)

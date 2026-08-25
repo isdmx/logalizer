@@ -32,18 +32,38 @@ class TestRunInit(unittest.TestCase):
     def test_interactive_prompts_when_missing(self):
         d = Path(tempfile.mkdtemp()) / "config.ini"
         args = _Args(url="https://k.example")  # missing username+password -> interactive
-        with mock.patch("builtins.input", side_effect=["alice"]), \
+        # url prompt keeps default, username set, space/index/insecure keep defaults
+        answers = iter(["", "alice", "", "", ""])
+        with mock.patch("builtins.input", side_effect=lambda *a: next(answers)), \
              mock.patch("getpass.getpass", return_value="pw"):
             rc = init.run_init(args, {}, config_path=d)
         self.assertEqual(rc, 0)
         cfg = load_config(d)
+        self.assertEqual(cfg["kibana"]["url"], "https://k.example")  # kept via blank
         self.assertEqual(cfg["kibana"]["username"], "alice")
         self.assertEqual(cfg["kibana"]["password"], "pw")
+        self.assertEqual(cfg["defaults"]["space"], "default")
+
+    def test_interactive_sets_optional_fields(self):
+        d = Path(tempfile.mkdtemp()) / "config.ini"
+        args = _Args()
+        # url, username, space, index, insecure(prompt) then password via getpass
+        answers = iter(["https://k.example", "bob", "myspace", "logs-*", "y"])
+        with mock.patch("builtins.input", side_effect=lambda *a: next(answers)), \
+             mock.patch("getpass.getpass", return_value="pw"):
+            rc = init.run_init(args, {}, config_path=d)
+        self.assertEqual(rc, 0)
+        cfg = load_config(d)
+        self.assertEqual(cfg["kibana"]["url"], "https://k.example")
+        self.assertEqual(cfg["defaults"]["space"], "myspace")
+        self.assertEqual(cfg["defaults"]["index"], "logs-*")
+        self.assertEqual(cfg["kibana"]["insecure"], "true")
 
     def test_missing_required_returns_2(self):
         d = Path(tempfile.mkdtemp()) / "config.ini"
         args = _Args()
-        with mock.patch("builtins.input", side_effect=["", ""]), \
+        answers = iter(["", "", "", "", ""])
+        with mock.patch("builtins.input", side_effect=lambda *a: next(answers)), \
              mock.patch("getpass.getpass", return_value=""):
             rc = init.run_init(args, {}, config_path=d)
         self.assertEqual(rc, 2)
