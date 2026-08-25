@@ -31,6 +31,22 @@ def load_config(path=None) -> dict:
     return {section: dict(parser.items(section)) for section in parser.sections()}
 
 
+def write_config(sections, path=None):
+    """Write a nested {section: {key: value}} dict to config.ini, chmod 0600."""
+    p = Path(path) if path else config_file_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    parser = configparser.ConfigParser()
+    for section, items in sections.items():
+        clean = {str(k): str(v) for k, v in items.items()
+                 if v is not None and v != ""}
+        if clean:
+            parser[section] = clean
+    with open(p, "w", encoding="utf-8") as fh:
+        parser.write(fh)
+    os.chmod(p, 0o600)
+    return p
+
+
 def _as_bool(value, default=False) -> bool:
     if value is None:
         return default

@@ -1,4 +1,5 @@
 import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,6 +73,36 @@ class TestBuildSettings(unittest.TestCase):
         cfg = {"kibana": {"insecure": "false"}, "defaults": {}}
         self.assertTrue(config.build_settings({}, cfg, space=None, insecure=True).insecure)
         self.assertTrue(config.build_settings({"KIBANA_INSECURE": "1"}, cfg, space=None).insecure)
+
+
+class TestWriteConfig(unittest.TestCase):
+    def test_write_and_roundtrip(self):
+        d = Path(tempfile.mkdtemp())
+        f = d / "config.ini"
+        config.write_config(
+            {"kibana": {"url": "https://k.example", "username": "bob",
+                        "password": "hunter2", "insecure": "true"},
+             "defaults": {"space": "default", "index": "logs-*"}},
+            path=f,
+        )
+        self.assertTrue(f.exists())
+        cfg = config.load_config(f)
+        self.assertEqual(cfg["kibana"]["url"], "https://k.example")
+        self.assertEqual(cfg["kibana"]["password"], "hunter2")
+        self.assertEqual(cfg["defaults"]["index"], "logs-*")
+
+    def test_write_sets_0600_perms(self):
+        d = Path(tempfile.mkdtemp())
+        f = d / "config.ini"
+        config.write_config({"kibana": {"url": "https://k.example"}}, path=f)
+        mode = stat.S_IMODE(f.stat().st_mode)
+        self.assertEqual(mode, 0o600)
+
+    def test_write_creates_parent_dirs(self):
+        d = Path(tempfile.mkdtemp()) / "nested" / "deep"
+        f = d / "config.ini"
+        config.write_config({"kibana": {"url": "x"}}, path=f)
+        self.assertTrue(f.exists())
 
 
 if __name__ == "__main__":
