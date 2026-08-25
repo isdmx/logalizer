@@ -1,15 +1,37 @@
 [project]
 name = "logalizer"
-version = "0.1.0"
-requires-python = ">=3.14"
+dynamic = ["version"]
+description = "Export Kibana logs as CSV from the command line via the Kibana Reporting API."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
 dependencies = []
+authors = [{ name = "isdmx" }]
+keywords = ["kibana", "elasticsearch", "csv", "logs", "export", "cli"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Logging",
+]
 
 [project.scripts]
 logalizer = "logalizer.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/isdmx/logalizer"
+Repository = "https://github.com/isdmx/logalizer"
+
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["logalizer"]
+
+[tool.setuptools_scm]
+fallback_version = "0.1.0"
