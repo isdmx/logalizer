@@ -184,21 +184,21 @@ def main(argv=None):
         print(json.dumps(help_json(), indent=2))
         return 0
 
-    cfg = load_config()
-    settings = build_settings(
-        os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
-        timeout=args.timeout, insecure=(True if args.insecure else None),
-    )
-
-    if not settings.url or not settings.username or not settings.password:
-        return _err(
-            "missing credentials. Set KIBANA_URL/KIBANA_USERNAME/KIBANA_PASSWORD "
-            "or ~/.config/logalizer/config.ini. Exit code 2.", 2)
-
-    client = Client(settings.url, settings.username, settings.password,
-                    insecure=settings.insecure)
-
     try:
+        cfg = load_config()
+        settings = build_settings(
+            os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
+            timeout=args.timeout, insecure=(True if args.insecure else None),
+        )
+
+        if not settings.url or not settings.username or not settings.password:
+            return _err(
+                "missing credentials. Set KIBANA_URL/KIBANA_USERNAME/KIBANA_PASSWORD "
+                "or ~/.config/logalizer/config.ini. Exit code 2.", 2)
+
+        client = Client(settings.url, settings.username, settings.password,
+                        insecure=settings.insecure)
+
         if args.list_spaces:
             for s in indexpatterns.list_spaces(client):
                 print(s)
@@ -208,6 +208,8 @@ def main(argv=None):
                 print(t)
             return 0
         if args.list_fields:
+            if not settings.index:
+                return _err("--list-fields requires --index PATTERN", 2)
             for f in indexpatterns.list_fields(client, settings.space, settings.index):
                 print(f)
             return 0
