@@ -42,6 +42,21 @@ index pattern from live lists. Or set environment variables:
 Run `logalizer --help` for the full reference and `logalizer --help-json` for a
 machine-readable flag schema.
 
+## Release
+
+Publishing is automated via GitHub Actions Trusted Publishing.
+
+One-time setup on PyPI: project settings → Publishing → add a "pending
+publisher" with owner `isdmx`, repository `logalizer`, workflow `publish.yml`,
+environment `pypi`.
+
+After that, cut a release with:
+
+    git tag v0.1.0
+    git push --tags
+
+CI builds the sdist + wheel and uploads them to PyPI automatically.
+
 ## License
 
 MIT
