@@ -6,3 +6,4 @@ build/
 .venv/
 
 .omo/
+docs/
