@@ -34,6 +34,13 @@ class TestIntegration(unittest.TestCase):
         csv_text = reporting.download(self.client, job_id)
         self.assertTrue(csv_text.startswith('"@timestamp"'))
 
+    def test_ping_all_pass(self):
+        from logalizer import ping
+        from logalizer.config import config_file_path
+        s = build_settings(os.environ, {})
+        rc = ping.run_ping(s, config_file_path())
+        self.assertEqual(rc, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
