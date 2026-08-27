@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from logalizer import reporting, indexpatterns
+from logalizer import format as fmt
 from logalizer import init, ping
 from logalizer.client import Client, ClientError
 from logalizer.config import build_settings, config_file_path, load_config
@@ -94,6 +95,8 @@ QUERY OPTIONS
 
 OUTPUT OPTIONS
     -o, --out PATH         write CSV to file (default: stdout)
+    --format FMT          output format: csv (default), json, jsonl, markdown
+    --limit N             max rows to output (default: unlimited)
     --timeout SECONDS      max wait for the async job (default: 120)
     --insecure             skip TLS cert verification (self-signed servers)
     -v, --verbose          progress messages to stderr
@@ -152,6 +155,8 @@ def help_json():
             {"flag": "--fields", "type": "csv-list", "default": "all fields",
              "example": "@timestamp,level,msg"},
             {"flag": "--out", "alias": "-o", "type": "path", "default": "stdout"},
+            {"flag": "--format", "type": "string", "choices": ["csv", "json", "jsonl", "markdown"], "default": "csv"},
+            {"flag": "--limit", "type": "int", "default": "unlimited"},
             {"flag": "--space", "alias": "-s", "type": "string", "default": "default"},
             {"flag": "--init", "type": "bool", "default": "false"},
             {"flag": "--ping", "type": "bool", "default": "false"},
@@ -180,6 +185,10 @@ def build_parser():
     p.add_argument("--from", dest="from_iso", help="absolute range start (ISO 8601)")
     p.add_argument("--to", dest="to_iso", help="absolute range end (ISO 8601)")
     p.add_argument("--fields", help="comma-separated columns (omit = all fields)")
+    p.add_argument("--format", dest="fmt", choices=["csv", "json", "jsonl", "markdown"],
+                   default="csv", help="output format (default: csv)")
+    p.add_argument("--limit", type=int, default=None,
+                   help="max rows to output (default: unlimited)")
     p.add_argument("-o", "--out", help="write CSV to file (default: stdout)")
     p.add_argument("--timeout", type=int, help="max job wait in seconds (default 120)")
     p.add_argument("--insecure", action="store_true", help="skip TLS verification")
@@ -268,12 +277,13 @@ def main(argv=None):
         if args.verbose:
             print("job completed, downloading...", file=sys.stderr)
         csv_text = reporting.download(client, job_id)
+        output = fmt.render(args.fmt, csv_text, args.limit)
 
         if args.out:
             with open(args.out, "w", encoding="utf-8") as fh:
-                fh.write(csv_text)
+                fh.write(output)
         else:
-            sys.stdout.write(csv_text)
+            sys.stdout.write(output)
         return 0
 
     except ClientError as e:

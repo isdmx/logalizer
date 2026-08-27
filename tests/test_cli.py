@@ -114,5 +114,43 @@ class TestInitPingDispatch(unittest.TestCase):
         self.assertIn("--url", flags)
 
 
+class TestFormatLimit(unittest.TestCase):
+    def test_format_json_wraps_output(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p", space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n3,4\n"), \
+             mock.patch("sys.stdout.write") as w:
+            rc = cli.main(["--index", "logs-*", "--format", "json"])
+        self.assertEqual(rc, 0)
+        written = w.call_args[0][0]
+        self.assertIn('"rows"', written)
+        self.assertIn('"truncated"', written)
+
+    def test_limit_truncates(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p", space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n3,4\n"), \
+             mock.patch("sys.stdout.write") as w:
+            rc = cli.main(["--index", "logs-*", "--format", "json", "--limit", "1"])
+        self.assertEqual(rc, 0)
+        import json
+        obj = json.loads(w.call_args[0][0])
+        self.assertTrue(obj["truncated"])
+        self.assertEqual(obj["count"], 1)
+
+    def test_help_json_lists_format_and_limit(self):
+        flags = [f["flag"] for f in cli.help_json()["flags"]]
+        self.assertIn("--format", flags)
+        self.assertIn("--limit", flags)
+
+
 if __name__ == "__main__":
     unittest.main()
