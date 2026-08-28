@@ -6,7 +6,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
-from logalizer import reporting, indexpatterns
+from logalizer import reporting, indexpatterns, search
 from logalizer import aggregate
 from logalizer import format as fmt
 from logalizer import init, ping
@@ -264,41 +264,36 @@ def main(argv=None):
         if not settings.index:
             return _err("--index is required for export", 2)
 
+        time_filter = build_time_filter(args.from_iso, args.to_iso, args.last)
+
         if args.count:
             if not args.group_by:
                 return _err("--count requires --group-by", 2)
             group_fields = [f.strip() for f in args.group_by.split(",") if f.strip()]
-            columns = group_fields
-        else:
-            group_fields = None
-            columns = [c.strip() for c in settings.fields.split(",") if c.strip()] if settings.fields else None
-
-        index_id = indexpatterns.resolve_index_pattern(
-            client, settings.space, settings.index)
-        if not index_id:
-            return _err(
-                f"index pattern {settings.index!r} not found in space "
-                f"{settings.space!r}. Use --list-indices to see available patterns.", 2)
-
-        time_filter = build_time_filter(args.from_iso, args.to_iso, args.last)
-
-        if args.verbose:
-            print(f"submitting CSV job (index={settings.index}, space={settings.space})...",
-                  file=sys.stderr)
-        job_id = reporting.submit(client, settings.space, index_id,
-                                  args.query, time_filter, columns)
-        if args.verbose:
-            print(f"job {job_id} submitted, waiting...", file=sys.stderr)
-        reporting.poll(client, job_id, timeout=settings.timeout)
-        if args.verbose:
-            print("job completed, downloading...", file=sys.stderr)
-        csv_text = reporting.download(client, job_id)
-
-        if args.count:
-            header, rows = fmt.parse_csv(csv_text)
-            result = aggregate.count_by(header, rows, group_fields, args.limit)
+            result = search.run_count(client, settings.index, args.query,
+                                      time_filter, group_fields, args.limit)
             output = aggregate.render(args.fmt, result, group_fields)
         else:
+            columns = [c.strip() for c in settings.fields.split(",") if c.strip()] if settings.fields else None
+
+            index_id = indexpatterns.resolve_index_pattern(
+                client, settings.space, settings.index)
+            if not index_id:
+                return _err(
+                    f"index pattern {settings.index!r} not found in space "
+                    f"{settings.space!r}. Use --list-indices to see available patterns.", 2)
+
+            if args.verbose:
+                print(f"submitting CSV job (index={settings.index}, space={settings.space})...",
+                      file=sys.stderr)
+            job_id = reporting.submit(client, settings.space, index_id,
+                                      args.query, time_filter, columns)
+            if args.verbose:
+                print(f"job {job_id} submitted, waiting...", file=sys.stderr)
+            reporting.poll(client, job_id, timeout=settings.timeout)
+            if args.verbose:
+                print("job completed, downloading...", file=sys.stderr)
+            csv_text = reporting.download(client, job_id)
             output = fmt.render(args.fmt, csv_text, args.limit)
 
         if args.out:

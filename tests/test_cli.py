@@ -154,34 +154,22 @@ class TestFormatLimit(unittest.TestCase):
 
 
 class TestCountMode(unittest.TestCase):
-    def _stack(self, download_text):
-        return [
-            mock.patch("logalizer.cli.build_settings",
-                       return_value=config.Settings(url="https://k", username="u",
-                                                    password="p", space="default", index="logs-*")),
-            mock.patch("logalizer.cli.Client"),
-            mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"),
-            mock.patch("logalizer.cli.reporting.submit", return_value="j1"),
-            mock.patch("logalizer.cli.reporting.poll"),
-            mock.patch("logalizer.cli.reporting.download", return_value=download_text),
-        ]
-
     def test_count_json(self):
-        csv_text = "level,status\ninfo,200\nerror,500\n"
-        with mock.patch("sys.stdout.write") as w:
-            stack = self._stack(csv_text)
-            for m in stack:
-                m.start()
-            try:
-                rc = cli.main(["--index", "logs-*", "--count", "--group-by", "level",
-                               "--format", "json"])
-            finally:
-                for m in reversed(stack):
-                    m.stop()
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.search.run_count",
+                        return_value={"groups": [{"key": "info", "count": 2}],
+                                      "total": 2, "distinct": 1, "truncated": False}) as run_count, \
+             mock.patch("sys.stdout.write") as w:
+            rc = cli.main(["--index", "logs-*", "--count", "--group-by", "level",
+                           "--format", "json"])
         self.assertEqual(rc, 0)
         obj = json.loads(w.call_args[0][0])
         self.assertEqual(obj["total"], 2)
         self.assertEqual(obj["groups"][0]["key"], "info")
+        run_count.assert_called_once()
 
     def test_count_requires_group_by(self):
         with mock.patch("logalizer.cli.build_settings",
