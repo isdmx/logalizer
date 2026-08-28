@@ -1,67 +1,12 @@
-"""Aggregation: group rows by one or two keys and count occurrences."""
+"""Aggregation rendering: format count results as json/jsonl/csv/markdown."""
 import csv
 import io
 import json
 from collections import defaultdict
 
 
-def _norm(value):
-    v = (value or "").strip()
-    return "<none>" if v in ("", "-") else v
-
-
 def _cell(v):
     return v.replace("|", "\\|").replace("\r", " ").replace("\n", " ")
-
-
-def count_by(header, rows, fields, limit=None):
-    """Return {"groups": [...], "total": n, "distinct": n, "truncated": bool}.
-
-    fields: list of 1 or 2 field names. limit: max top-level groups (None = all).
-    Two-key groups are nested: each top-level node has a "subgroups" list.
-    """
-    if not fields:
-        raise ValueError("no group-by fields")
-    if len(fields) > 2:
-        raise ValueError("count supports 1 or 2 group-by fields")
-
-    indices = []
-    for f in fields:
-        if f not in header:
-            raise ValueError(f"field {f!r} not in export columns {header}")
-        indices.append(header.index(f))
-
-    counts = {}
-    for row in rows:
-        keys = tuple(_norm(row[i] if i < len(row) else "") for i in indices)
-        counts[keys] = counts.get(keys, 0) + 1
-
-    total = sum(counts.values())
-    distinct = len(counts)
-    groups = _build_tree(counts, len(fields), limit)
-    truncated = limit is not None and distinct > limit
-    return {"groups": groups, "total": total, "distinct": distinct, "truncated": truncated}
-
-
-def _build_tree(counts, depth, limit=None):
-    grouped = defaultdict(int)
-    sub = defaultdict(dict)
-    for keys, cnt in counts.items():
-        grouped[keys[0]] += cnt
-        if depth > 1:
-            sub[keys[0]][keys[1:]] = cnt
-
-    ordered = sorted(grouped.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
-    if limit is not None:
-        ordered = ordered[:limit]
-
-    result = []
-    for key, cnt in ordered:
-        node = {"key": key, "count": cnt}
-        if depth > 1:
-            node["subgroups"] = _build_tree(sub[key], depth - 1)
-        result.append(node)
-    return result
 
 
 def _flatten_leaves(nodes, prefix=()):
