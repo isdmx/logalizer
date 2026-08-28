@@ -3,6 +3,7 @@ import unittest
 from unittest import mock
 
 from logalizer import search
+from logalizer.client import ClientError
 
 
 def _raw(total=0, buckets=None, sum_other=0):
@@ -195,6 +196,20 @@ class TestOffendingFields(unittest.TestCase):
 
     def test_no_offending_fields_returns_empty(self):
         self.assertEqual(search._offending_fields("some other error"), [])
+
+
+class TestErrorHandling(unittest.TestCase):
+    def test_auth_error_raises_client_error_3(self):
+        client = _client([(401, '{"statusCode":401,"error":"Unauthorized"}')])
+        with self.assertRaises(ClientError) as ctx:
+            search.run_count(client, "idx", "", None, ["level"], None)
+        self.assertEqual(ctx.exception.exit_code, 3)
+
+    def test_server_error_raises_client_error_5(self):
+        client = _client([(500, '{"statusCode":500,"error":"Internal Server Error"}')])
+        with self.assertRaises(ClientError) as ctx:
+            search.run_count(client, "idx", "", None, ["level"], None)
+        self.assertEqual(ctx.exception.exit_code, 5)
 
 
 class TestQueryClauses(unittest.TestCase):

@@ -2,6 +2,8 @@
 import json
 import re
 
+from logalizer.client import raise_for_status
+
 _ENDPOINT = "/internal/search/es"
 _DEFAULT_SIZE = 10000
 _MISSING = "<none>"
@@ -94,5 +96,6 @@ def run_count(client, index, query, time_filter, fields, limit):
                         "body": _build_body(query, time_filter, current_fields, limit)}},
         )
 
+    raise_for_status(status, text, "count search")
     raw_response = json.loads(text)["rawResponse"]
     return _map_result(raw_response, depth)
