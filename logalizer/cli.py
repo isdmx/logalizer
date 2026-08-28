@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from logalizer import reporting, indexpatterns
+from logalizer import aggregate
 from logalizer import format as fmt
 from logalizer import init, ping
 from logalizer.client import Client, ClientError
@@ -92,6 +93,8 @@ QUERY OPTIONS
                            Use both, or neither.
     --fields LIST          comma-separated columns, in order.
                            Omit to export ALL fields (wide, includes internals).
+    --count               count rows grouped by --group-by (instead of exporting)
+    --group-by FIELDS     fields to group by, comma-separated (1 or 2). e.g. 'level'
 
 OUTPUT OPTIONS
     -o, --out PATH         write CSV to file (default: stdout)
@@ -157,6 +160,8 @@ def help_json():
             {"flag": "--out", "alias": "-o", "type": "path", "default": "stdout"},
             {"flag": "--format", "type": "string", "choices": ["csv", "json", "jsonl", "markdown"], "default": "csv"},
             {"flag": "--limit", "type": "int", "default": "unlimited"},
+            {"flag": "--count", "type": "bool", "default": "false"},
+            {"flag": "--group-by", "type": "string", "format": "field[,field]"},
             {"flag": "--space", "alias": "-s", "type": "string", "default": "default"},
             {"flag": "--init", "type": "bool", "default": "false"},
             {"flag": "--ping", "type": "bool", "default": "false"},
@@ -185,6 +190,8 @@ def build_parser():
     p.add_argument("--from", dest="from_iso", help="absolute range start (ISO 8601)")
     p.add_argument("--to", dest="to_iso", help="absolute range end (ISO 8601)")
     p.add_argument("--fields", help="comma-separated columns (omit = all fields)")
+    p.add_argument("--count", action="store_true", help="count rows grouped by --group-by")
+    p.add_argument("--group-by", help="field(s) to group by (comma-separated, 1 or 2)")
     p.add_argument("--format", dest="fmt", choices=["csv", "json", "jsonl", "markdown"],
                    default="csv", help="output format (default: csv)")
     p.add_argument("--limit", type=int, default=None,
@@ -256,6 +263,16 @@ def main(argv=None):
         # export
         if not settings.index:
             return _err("--index is required for export", 2)
+
+        if args.count:
+            if not args.group_by:
+                return _err("--count requires --group-by", 2)
+            group_fields = [f.strip() for f in args.group_by.split(",") if f.strip()]
+            columns = group_fields
+        else:
+            group_fields = None
+            columns = [c.strip() for c in settings.fields.split(",") if c.strip()] if settings.fields else None
+
         index_id = indexpatterns.resolve_index_pattern(
             client, settings.space, settings.index)
         if not index_id:
@@ -264,7 +281,6 @@ def main(argv=None):
                 f"{settings.space!r}. Use --list-indices to see available patterns.", 2)
 
         time_filter = build_time_filter(args.from_iso, args.to_iso, args.last)
-        columns = [c.strip() for c in settings.fields.split(",") if c.strip()] if settings.fields else None
 
         if args.verbose:
             print(f"submitting CSV job (index={settings.index}, space={settings.space})...",
@@ -277,7 +293,13 @@ def main(argv=None):
         if args.verbose:
             print("job completed, downloading...", file=sys.stderr)
         csv_text = reporting.download(client, job_id)
-        output = fmt.render(args.fmt, csv_text, args.limit)
+
+        if args.count:
+            header, rows = fmt.parse_csv(csv_text)
+            result = aggregate.count_by(header, rows, group_fields, args.limit)
+            output = aggregate.render(args.fmt, result, group_fields)
+        else:
+            output = fmt.render(args.fmt, csv_text, args.limit)
 
         if args.out:
             with open(args.out, "w", encoding="utf-8") as fh:

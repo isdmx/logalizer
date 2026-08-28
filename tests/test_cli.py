@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 from unittest import mock
@@ -150,6 +151,49 @@ class TestFormatLimit(unittest.TestCase):
         flags = [f["flag"] for f in cli.help_json()["flags"]]
         self.assertIn("--format", flags)
         self.assertIn("--limit", flags)
+
+
+class TestCountMode(unittest.TestCase):
+    def _stack(self, download_text):
+        return [
+            mock.patch("logalizer.cli.build_settings",
+                       return_value=config.Settings(url="https://k", username="u",
+                                                    password="p", space="default", index="logs-*")),
+            mock.patch("logalizer.cli.Client"),
+            mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"),
+            mock.patch("logalizer.cli.reporting.submit", return_value="j1"),
+            mock.patch("logalizer.cli.reporting.poll"),
+            mock.patch("logalizer.cli.reporting.download", return_value=download_text),
+        ]
+
+    def test_count_json(self):
+        csv_text = "level,status\ninfo,200\nerror,500\n"
+        with mock.patch("sys.stdout.write") as w:
+            stack = self._stack(csv_text)
+            for m in stack:
+                m.start()
+            try:
+                rc = cli.main(["--index", "logs-*", "--count", "--group-by", "level",
+                               "--format", "json"])
+            finally:
+                for m in reversed(stack):
+                    m.stop()
+        self.assertEqual(rc, 0)
+        obj = json.loads(w.call_args[0][0])
+        self.assertEqual(obj["total"], 2)
+        self.assertEqual(obj["groups"][0]["key"], "info")
+
+    def test_count_requires_group_by(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")):
+            rc = cli.main(["--index", "logs-*", "--count"])
+        self.assertEqual(rc, 2)
+
+    def test_help_json_lists_count_and_group_by(self):
+        flags = [f["flag"] for f in cli.help_json()["flags"]]
+        self.assertIn("--count", flags)
+        self.assertIn("--group-by", flags)
 
 
 if __name__ == "__main__":
