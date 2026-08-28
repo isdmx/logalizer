@@ -186,6 +186,36 @@ class TestKeywordRetry(unittest.TestCase):
         self.assertEqual(
             second_body["aggs"]["g0"]["aggs"]["g1"]["terms"]["field"], "status.keyword")
 
+    def test_retries_keyword_on_shard_failures(self):
+        shard_failure = json.dumps({
+            "rawResponse": {
+                "hits": {"total": 0},
+                "_shards": {
+                    "failed": 140,
+                    "failures": [{
+                        "reason": {
+                            "reason": "Text fields are not optimised for operations "
+                                      "that require per-document field data. "
+                                      "set fielddata=true on [level]"
+                        }
+                    }]
+                },
+                "aggregations": {},
+            }
+        })
+        buckets = [{"key": "debug", "doc_count": 100}]
+        client = _client([
+            (200, shard_failure),
+            (200, _raw(total=100, buckets=buckets, sum_other=0)),
+        ])
+        result = search.run_count(client, "idx", "", None, ["level"], None)
+
+        self.assertEqual(client.request.call_count, 2)
+        second_body = _captured_body(client, call_index=1)
+        self.assertEqual(second_body["aggs"]["g0"]["terms"]["field"], "level.keyword")
+        self.assertEqual(result["total"], 100)
+        self.assertEqual(result["groups"], [{"key": "debug", "count": 100}])
+
 
 class TestOffendingFields(unittest.TestCase):
     def test_parses_offending_fields_deduped(self):
@@ -196,6 +226,22 @@ class TestOffendingFields(unittest.TestCase):
 
     def test_no_offending_fields_returns_empty(self):
         self.assertEqual(search._offending_fields("some other error"), [])
+
+    def test_offending_fields_from_shard_failures(self):
+        text = json.dumps({
+            "rawResponse": {
+                "_shards": {
+                    "failures": [{
+                        "reason": {
+                            "reason": "Text fields are not optimised for operations "
+                                      "that require per-document field data. "
+                                      "set fielddata=true on [level]"
+                        }
+                    }]
+                }
+            }
+        })
+        self.assertEqual(search._offending_fields(text), ["level"])
 
 
 class TestErrorHandling(unittest.TestCase):

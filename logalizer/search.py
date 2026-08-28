@@ -12,8 +12,23 @@ _OFFENDING_FIELD_RE = re.compile(r"set fielddata=true on \[([^\]]+)\]")
 
 
 def _offending_fields(text):
-    """Return the field names named in a text-field 400 error, deduped in order."""
+    """Return offending text-field names found in a response body, deduped in order."""
     return list(dict.fromkeys(_OFFENDING_FIELD_RE.findall(text)))
+
+
+def _has_text_field_failure(text):
+    try:
+        data = json.loads(text)
+    except (ValueError, TypeError):
+        return False
+    failures = data.get("rawResponse", {}).get("_shards", {}).get("failures", [])
+    for failure in failures:
+        reason = failure.get("reason")
+        if isinstance(reason, dict):
+            reason = reason.get("reason", "")
+        if isinstance(reason, str) and _TEXT_FIELD_ERROR in reason:
+            return True
+    return False
 
 
 def _build_body(query, time_filter, fields, limit):
@@ -81,7 +96,7 @@ def run_count(client, index, query, time_filter, fields, limit):
                     "body": _build_body(query, time_filter, current_fields, limit)}},
     )
 
-    while status == 400 and _TEXT_FIELD_ERROR in text:
+    while (status == 400 and _TEXT_FIELD_ERROR in text) or _has_text_field_failure(text):
         offending = _offending_fields(text)
         new_fields = [
             f + ".keyword" if f in offending and not f.endswith(".keyword") else f
