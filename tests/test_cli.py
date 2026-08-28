@@ -1,6 +1,8 @@
+import io
 import json
 import os
 import unittest
+from contextlib import redirect_stdout
 from unittest import mock
 
 from logalizer import cli, config
@@ -190,6 +192,31 @@ class TestCountMode(unittest.TestCase):
         flags = [f["flag"] for f in cli.help_json()["flags"]]
         self.assertIn("--count", flags)
         self.assertIn("--group-by", flags)
+
+
+class TestBareCall(unittest.TestCase):
+    def test_bare_call_prints_help_and_exits_zero(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = cli.main([])
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        self.assertIn("usage:", out.lower())
+        self.assertIn("logalizer", out)
+
+    def test_explicit_index_still_exports(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n"), \
+             mock.patch("sys.stdout.write") as w:
+            rc = cli.main(["--index", "logs-*"])
+        self.assertEqual(rc, 0)
+        self.assertIn("1,2", w.call_args[0][0])
 
 
 if __name__ == "__main__":

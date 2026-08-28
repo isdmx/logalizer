@@ -218,10 +218,17 @@ def _err(msg, code):
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
     if args.help_json:
         print(json.dumps(help_json(), indent=2))
+        return 0
+
+    # Bare call (no action flag, no explicit --index) → print help, exit 0.
+    if not (args.init or args.ping or args.list_spaces or args.list_indices
+            or args.list_fields or args.count or args.index):
+        parser.print_help()
         return 0
 
     try:
