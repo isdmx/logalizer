@@ -1,10 +1,17 @@
 """Server-side count aggregation via Kibana's internal search endpoint."""
 import json
+import re
 
 _ENDPOINT = "/internal/search/es"
 _DEFAULT_SIZE = 10000
 _MISSING = "<none>"
 _TEXT_FIELD_ERROR = "Text fields are not optimised"
+_OFFENDING_FIELD_RE = re.compile(r"set fielddata=true on \[([^\]]+)\]")
+
+
+def _offending_fields(text):
+    """Return the field names named in a text-field 400 error, deduped in order."""
+    return list(dict.fromkeys(_OFFENDING_FIELD_RE.findall(text)))
 
 
 def _build_body(query, time_filter, fields, limit):
@@ -65,17 +72,26 @@ def run_count(client, index, query, time_filter, fields, limit):
     limit: max top-level groups (None = default size).
     """
     depth = len(fields)
+    current_fields = list(fields)
     status, text = client.request(
         "POST", _ENDPOINT,
-        {"params": {"index": index, "body": _build_body(query, time_filter, fields, limit)}},
+        {"params": {"index": index,
+                    "body": _build_body(query, time_filter, current_fields, limit)}},
     )
 
-    if status == 400 and _TEXT_FIELD_ERROR in text:
-        keyword_fields = [f + ".keyword" for f in fields]
+    while status == 400 and _TEXT_FIELD_ERROR in text:
+        offending = _offending_fields(text)
+        new_fields = [
+            f + ".keyword" if f in offending and not f.endswith(".keyword") else f
+            for f in current_fields
+        ]
+        if new_fields == current_fields:
+            break
+        current_fields = new_fields
         status, text = client.request(
             "POST", _ENDPOINT,
             {"params": {"index": index,
-                        "body": _build_body(query, time_filter, keyword_fields, limit)}},
+                        "body": _build_body(query, time_filter, current_fields, limit)}},
         )
 
     raw_response = json.loads(text)["rawResponse"]

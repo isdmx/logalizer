@@ -139,7 +139,7 @@ class TestMapResult(unittest.TestCase):
 class TestKeywordRetry(unittest.TestCase):
     def test_retries_keyword_on_text_error(self):
         err = (400, "Text fields are not optimised for operations that "
-                    "require per-document field data")
+                    "require per-document field data. set fielddata=true on [level]")
         client = _client([err, (200, _raw())])
         result = search.run_count(client, "idx", "", None, ["level"], None)
 
@@ -147,6 +147,54 @@ class TestKeywordRetry(unittest.TestCase):
         second_body = _captured_body(client, call_index=1)
         self.assertEqual(second_body["aggs"]["g0"]["terms"]["field"], "level.keyword")
         self.assertEqual(result["total"], 0)
+
+    def test_retry_only_suffixes_offending_field(self):
+        err = (400, "Text fields are not optimised for operations that "
+                    "require per-document field data. set fielddata=true on [level]")
+        client = _client([err, (200, _raw())])
+        search.run_count(client, "idx", "", None, ["level", "status"], None)
+
+        self.assertEqual(client.request.call_count, 2)
+        second_body = _captured_body(client, call_index=1)
+        self.assertEqual(second_body["aggs"]["g0"]["terms"]["field"], "level.keyword")
+        self.assertEqual(
+            second_body["aggs"]["g0"]["aggs"]["g1"]["terms"]["field"], "status")
+
+    def test_retry_suffixes_nested_offending_field(self):
+        # Nested aggs: the first 400 names only the OUTER offending field;
+        # the inner field's problem is revealed only after the outer is fixed.
+        err1 = (400, "Text fields are not optimised ... set fielddata=true on [level]")
+        err2 = (400, "Text fields are not optimised ... set fielddata=true on [status]")
+        client = _client([err1, err2, (200, _raw())])
+        search.run_count(client, "idx", "", None, ["level", "status"], None)
+
+        self.assertEqual(client.request.call_count, 3)
+        third_body = _captured_body(client, call_index=2)
+        self.assertEqual(third_body["aggs"]["g0"]["terms"]["field"], "level.keyword")
+        self.assertEqual(
+            third_body["aggs"]["g0"]["aggs"]["g1"]["terms"]["field"], "status.keyword")
+
+    def test_keeps_existing_keyword_suffix(self):
+        err = (400, "Text fields are not optimised ... set fielddata=true on [status]")
+        client = _client([err, (200, _raw())])
+        search.run_count(client, "idx", "", None, ["level.keyword", "status"], None)
+
+        self.assertEqual(client.request.call_count, 2)
+        second_body = _captured_body(client, call_index=1)
+        self.assertEqual(second_body["aggs"]["g0"]["terms"]["field"], "level.keyword")
+        self.assertEqual(
+            second_body["aggs"]["g0"]["aggs"]["g1"]["terms"]["field"], "status.keyword")
+
+
+class TestOffendingFields(unittest.TestCase):
+    def test_parses_offending_fields_deduped(self):
+        text = ("Text fields are not optimised for operations that require "
+                "per-document field data. set fielddata=true on [level] ... "
+                "set fielddata=true on [status] ... set fielddata=true on [level]")
+        self.assertEqual(search._offending_fields(text), ["level", "status"])
+
+    def test_no_offending_fields_returns_empty(self):
+        self.assertEqual(search._offending_fields("some other error"), [])
 
 
 class TestQueryClauses(unittest.TestCase):
