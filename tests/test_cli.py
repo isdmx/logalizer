@@ -178,6 +178,14 @@ class TestCountMode(unittest.TestCase):
             rc = cli.main(["--index", "logs-*", "--count"])
         self.assertEqual(rc, 2)
 
+    def test_count_rejects_three_group_by_fields(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")):
+            rc = cli.main(["--index", "logs-*", "--count", "--group-by",
+                           "level,status,url"])
+        self.assertEqual(rc, 2)
+
     def test_help_json_lists_count_and_group_by(self):
         flags = [f["flag"] for f in cli.help_json()["flags"]]
         self.assertIn("--count", flags)

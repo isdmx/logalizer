@@ -2,7 +2,7 @@
 import json
 import re
 
-from logalizer.client import raise_for_status
+from logalizer.client import ClientError, raise_for_status
 
 _ENDPOINT = "/internal/search/es"
 _DEFAULT_SIZE = 10000
@@ -113,4 +113,6 @@ def run_count(client, index, query, time_filter, fields, limit):
 
     raise_for_status(status, text, "count search")
     raw_response = json.loads(text)["rawResponse"]
+    if raw_response.get("_shards", {}).get("total", 0) == 0:
+        raise ClientError(f"index pattern {index!r} matched no indices", 2)
     return _map_result(raw_response, depth)

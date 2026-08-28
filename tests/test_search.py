@@ -12,6 +12,7 @@ def _raw(total=0, buckets=None, sum_other=0):
     return json.dumps({
         "rawResponse": {
             "hits": {"total": total},
+            "_shards": {"total": 1, "successful": 1, "failed": 0},
             "aggregations": {
                 "g0": {"buckets": buckets, "sum_other_doc_count": sum_other},
             },
@@ -104,6 +105,7 @@ class TestMapResult(unittest.TestCase):
         raw = {
             "rawResponse": {
                 "hits": {"total": 4},
+                "_shards": {"total": 1, "successful": 1, "failed": 0},
                 "aggregations": {
                     "g0": {
                         "buckets": [
@@ -191,6 +193,7 @@ class TestKeywordRetry(unittest.TestCase):
             "rawResponse": {
                 "hits": {"total": 0},
                 "_shards": {
+                    "total": 170,
                     "failed": 140,
                     "failures": [{
                         "reason": {
@@ -256,6 +259,20 @@ class TestErrorHandling(unittest.TestCase):
         with self.assertRaises(ClientError) as ctx:
             search.run_count(client, "idx", "", None, ["level"], None)
         self.assertEqual(ctx.exception.exit_code, 5)
+
+    def test_no_matching_indices_raises_client_error(self):
+        body = json.dumps({
+            "rawResponse": {
+                "hits": {"total": 0},
+                "_shards": {"total": 0, "successful": 0, "failed": 0},
+                "aggregations": {},
+            }
+        })
+        client = _client([(200, body)])
+        with self.assertRaises(ClientError) as ctx:
+            search.run_count(client, "no-such-*", "", None, ["level"], None)
+        self.assertEqual(ctx.exception.exit_code, 2)
+        self.assertIn("matched no indices", str(ctx.exception))
 
 
 class TestQueryClauses(unittest.TestCase):

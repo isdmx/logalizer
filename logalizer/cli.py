@@ -270,6 +270,9 @@ def main(argv=None):
             if not args.group_by:
                 return _err("--count requires --group-by", 2)
             group_fields = [f.strip() for f in args.group_by.split(",") if f.strip()]
+            if len(group_fields) > 2:
+                return _err(
+                    f"--group-by accepts 1 or 2 fields (got {len(group_fields)})", 2)
             result = search.run_count(client, settings.index, args.query,
                                       time_filter, group_fields, args.limit)
             output = aggregate.render(args.fmt, result, group_fields)
