@@ -219,5 +219,36 @@ class TestBareCall(unittest.TestCase):
         self.assertIn("1,2", w.call_args[0][0])
 
 
+class TestProfiles(unittest.TestCase):
+    def test_list_profiles_flag(self):
+        with mock.patch("logalizer.cli.load_config", return_value={"profile.prod": {}, "profile.staging": {}}), \
+             mock.patch("sys.stdout.write") as w:
+            rc = cli.main(["--list-profiles"])
+        self.assertEqual(rc, 0)
+        written = "".join(c.args[0] for c in w.call_args_list if c.args)
+        self.assertIn("prod", written)
+        self.assertIn("staging", written)
+
+    def test_profile_passed_to_build_settings(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")) as bs, \
+             mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n"), \
+             mock.patch("sys.stdout.write"):
+            rc = cli.main(["--index", "logs-*", "--profile", "prod"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(bs.call_args.kwargs.get("profile"), "prod")
+
+    def test_help_json_lists_profile_flags(self):
+        flags = [f["flag"] for f in cli.help_json()["flags"]]
+        self.assertIn("--profile", flags)
+        self.assertIn("--list-profiles", flags)
+
+
 if __name__ == "__main__":
     unittest.main()

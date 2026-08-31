@@ -11,7 +11,7 @@ from logalizer import aggregate
 from logalizer import format as fmt
 from logalizer import init, ping
 from logalizer.client import Client, ClientError
-from logalizer.config import build_settings, config_file_path, load_config
+from logalizer.config import build_settings, config_file_path, list_profiles, load_config
 
 
 class UsageError(Exception):
@@ -96,6 +96,11 @@ QUERY OPTIONS
     --count               count rows grouped by --group-by (instead of exporting)
     --group-by FIELDS     fields to group by, comma-separated (1 or 2). e.g. 'level'
 
+PROFILES
+    --profile NAME        use a named connection profile from config.ini
+                          (e.g. --profile prod). Overrides legacy [kibana]/[defaults].
+    --list-profiles       print configured profile names (stdout), one per line.
+
 OUTPUT OPTIONS
     -o, --out PATH         write CSV to file (default: stdout)
     --format FMT          output format: csv (default), json, jsonl, markdown
@@ -165,6 +170,8 @@ def help_json():
             {"flag": "--space", "alias": "-s", "type": "string", "default": "default"},
             {"flag": "--init", "type": "bool", "default": "false"},
             {"flag": "--ping", "type": "bool", "default": "false"},
+            {"flag": "--profile", "type": "string", "default": "none (legacy config)"},
+            {"flag": "--list-profiles", "type": "bool", "default": "false"},
             {"flag": "--url", "type": "string", "used_by": "--init"},
             {"flag": "--username", "type": "string", "used_by": "--init"},
             {"flag": "--password", "type": "string", "used_by": "--init"},
@@ -206,6 +213,8 @@ def build_parser():
     p.add_argument("--help-json", action="store_true", help="machine-readable help")
     p.add_argument("--init", action="store_true", help="configure and write config.ini")
     p.add_argument("--ping", action="store_true", help="test config + connectivity")
+    p.add_argument("--profile", help="use a named connection profile")
+    p.add_argument("--list-profiles", action="store_true", help="list configured profiles")
     p.add_argument("--url", help="Kibana URL (for --init)")
     p.add_argument("--username", help="username (for --init)")
     p.add_argument("--password", help="password (for --init)")
@@ -225,6 +234,12 @@ def main(argv=None):
         print(json.dumps(help_json(), indent=2))
         return 0
 
+    if args.list_profiles:
+        cfg = load_config()
+        for name in list_profiles(cfg):
+            print(name)
+        return 0
+
     # Bare call (no action flag, no explicit --index) → print help, exit 0.
     if not (args.init or args.ping or args.list_spaces or args.list_indices
             or args.list_fields or args.count or args.index):
@@ -236,6 +251,7 @@ def main(argv=None):
         settings = build_settings(
             os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
             timeout=args.timeout, insecure=(True if args.insecure else None),
+            profile=args.profile,
         )
 
         if args.init:
