@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from logalizer.client import Client, ClientError
+from logalizer.client import Client, ClientError, raise_for_status
 
 
 class TestClient(unittest.TestCase):
@@ -38,6 +38,19 @@ class TestClient(unittest.TestCase):
             with self.assertRaises(ClientError) as ctx:
                 c.request("GET", "/api/x")
         self.assertEqual(ctx.exception.exit_code, 5)
+
+
+class TestRaiseForStatusHint(unittest.TestCase):
+    def test_403_appends_hint(self):
+        with self.assertRaises(ClientError) as ctx:
+            raise_for_status(403, "", "whatever", hint="try --export-backend search")
+        self.assertIn("--export-backend search", str(ctx.exception))
+        self.assertEqual(ctx.exception.exit_code, 3)
+
+    def test_403_no_hint_unchanged(self):
+        with self.assertRaises(ClientError) as ctx:
+            raise_for_status(403, "", "whatever")
+        self.assertNotIn("--export-backend", str(ctx.exception))
 
 
 if __name__ == "__main__":

@@ -27,7 +27,8 @@ def submit(client, space, index_id, query, time_filter, columns):
     body = {"jobParams": rison.encode(job_params)}
     path = f"/s/{space}/api/reporting/generate/csv_searchsource"
     status, raw = client.request("POST", path, body)
-    raise_for_status(status, raw, "submit CSV job")
+    raise_for_status(status, raw, "submit CSV job",
+                     hint="CSV export via the reporting API requires the 'reporting_user' role — try --export-backend search.")
     return json.loads(raw)["job"]["id"]
 
 

@@ -35,6 +35,12 @@ class TestSubmit(unittest.TestCase):
         reporting.submit(c, "default", "abc-id", "", None, None)
         self.assertNotIn("columns", c.calls[0][2]["jobParams"])
 
+    def test_submit_403_hints_search_fallback(self):
+        fake = _Fake([(403, '{"statusCode":403}')])
+        with self.assertRaises(ClientError) as ctx:
+            reporting.submit(fake, "aiorch", "idx", "", None, None)
+        self.assertIn("--export-backend search", str(ctx.exception))
+
 
 class TestPoll(unittest.TestCase):
     def test_completed(self):

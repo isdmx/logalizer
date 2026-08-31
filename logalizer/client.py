@@ -12,11 +12,14 @@ class ClientError(Exception):
         self.exit_code = exit_code
 
 
-def raise_for_status(status, body, what):
+def raise_for_status(status, body, what, hint=None):
     if status == 401:
         raise ClientError("authentication failed (401). Check KIBANA_USERNAME/KIBANA_PASSWORD.", 3)
     if status == 403:
-        raise ClientError("permission denied (403). Role lacks access to this space.", 3)
+        msg = "permission denied (403). Role lacks access to this space."
+        if hint:
+            msg += " " + hint
+        raise ClientError(msg, 3)
     if status >= 400:
         raise ClientError(f"{what} failed ({status}): {body}", 5)
 
