@@ -53,6 +53,38 @@ def _as_bool(value, default=False) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
+_KIBANA_KEYS = {"url", "username", "password", "insecure"}
+
+
+def list_profiles(cfg) -> list:
+    """Return sorted profile names for keys matching the ``profile.`` prefix."""
+    return sorted(
+        key[len("profile."):]
+        for key in cfg
+        if key.startswith("profile.")
+    )
+
+
+def select_profile(cfg, name) -> dict:
+    """Resolve ``name`` into a ``{"kibana": ..., "defaults": ...}`` dict."""
+    if not name:
+        return {
+            "kibana": cfg.get("kibana", {}),
+            "defaults": cfg.get("defaults", {}),
+        }
+    section = cfg.get(f"profile.{name}")
+    if section is None:
+        raise ValueError(f"unknown profile: {name!r}")
+    kb = {}
+    df = {}
+    for key, value in section.items():
+        if key in _KIBANA_KEYS:
+            kb[key] = value
+        else:
+            df[key] = value
+    return {"kibana": kb, "defaults": df}
+
+
 @dataclass
 class Settings:
     url: str = ""
@@ -66,10 +98,15 @@ class Settings:
 
 
 def build_settings(env, cfg, space=None, index=None, fields=None,
-                   timeout=None, insecure=None) -> Settings:
+                   timeout=None, insecure=None, profile=None) -> Settings:
     """Resolve settings with precedence flag > env > config > default."""
-    kb = cfg.get("kibana", {})
-    df = cfg.get("defaults", {})
+    if profile:
+        selected = select_profile(cfg, profile)
+        kb = selected["kibana"]
+        df = selected["defaults"]
+    else:
+        kb = cfg.get("kibana", {})
+        df = cfg.get("defaults", {})
 
     url = env.get("KIBANA_URL") or kb.get("url", "")
     username = env.get("KIBANA_USERNAME") or kb.get("username", "")

@@ -105,5 +105,43 @@ class TestWriteConfig(unittest.TestCase):
         self.assertTrue(f.exists())
 
 
+class TestProfiles(unittest.TestCase):
+    def test_list_profiles(self):
+        cfg = {"profile.prod": {}, "profile.staging": {}, "kibana": {}, "defaults": {}}
+        self.assertEqual(config.list_profiles(cfg), ["prod", "staging"])
+
+    def test_select_profile_splits_flat_keys(self):
+        cfg = {"profile.prod": {"url": "https://p", "username": "u", "password": "pw",
+                                "insecure": "true", "space": "aiorch", "index": "logs-*"}}
+        sel = config.select_profile(cfg, "prod")
+        self.assertEqual(sel["kibana"]["url"], "https://p")
+        self.assertEqual(sel["kibana"]["insecure"], "true")
+        self.assertEqual(sel["defaults"]["space"], "aiorch")
+        self.assertEqual(sel["defaults"]["index"], "logs-*")
+        self.assertNotIn("space", sel["kibana"])
+
+    def test_select_profile_unknown_raises(self):
+        with self.assertRaises(ValueError):
+            config.select_profile({}, "nope")
+
+    def test_select_profile_none_returns_legacy(self):
+        cfg = {"kibana": {"url": "https://l"}, "defaults": {"space": "default"}}
+        sel = config.select_profile(cfg, None)
+        self.assertEqual(sel["kibana"]["url"], "https://l")
+        self.assertEqual(sel["defaults"]["space"], "default")
+
+    def test_build_settings_uses_profile(self):
+        cfg = {"profile.prod": {"url": "https://p", "username": "u", "password": "pw",
+                                "space": "aiorch"}}
+        s = config.build_settings({}, cfg, profile="prod")
+        self.assertEqual(s.url, "https://p")
+        self.assertEqual(s.space, "aiorch")
+
+    def test_env_overrides_profile(self):
+        cfg = {"profile.prod": {"url": "https://p", "username": "u", "password": "pw"}}
+        s = config.build_settings({"KIBANA_URL": "https://env"}, cfg, profile="prod")
+        self.assertEqual(s.url, "https://env")
+
+
 if __name__ == "__main__":
     unittest.main()
