@@ -58,7 +58,7 @@ class TestBuildBody(unittest.TestCase):
 
         terms = body["aggs"]["g0"]["terms"]
         self.assertEqual(terms["field"], "level")
-        self.assertEqual(terms["missing"], "<none>")
+        self.assertNotIn("missing", terms)
         self.assertEqual(terms["size"], 10000)
 
     def test_two_key_nested_structure(self):
@@ -70,13 +70,19 @@ class TestBuildBody(unittest.TestCase):
         self.assertEqual(outer["terms"]["field"], "level")
         inner = outer["aggs"]["g1"]["terms"]
         self.assertEqual(inner["field"], "status")
-        self.assertEqual(inner["missing"], "<none>")
+        self.assertNotIn("missing", inner)
 
     def test_limit_sets_size(self):
         client = _client([(200, _raw())])
         search.run_count(client, "idx", "", None, ["level"], 25)
         body = _captured_body(client)
         self.assertEqual(body["aggs"]["g0"]["terms"]["size"], 25)
+
+    def test_no_missing_param_in_terms_agg(self):
+        body = search._build_body("", None, ["status"], None)
+        agg = body["aggs"]["g0"]["terms"]
+        self.assertNotIn("missing", agg)
+        self.assertEqual(agg["field"], "status")
 
 
 class TestMapResult(unittest.TestCase):

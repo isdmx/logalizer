@@ -6,7 +6,6 @@ from logalizer.client import ClientError, raise_for_status
 
 _ENDPOINT = "/internal/search/es"
 _DEFAULT_SIZE = 10000
-_MISSING = "<none>"
 _TEXT_FIELD_ERROR = "Text fields are not optimised"
 _OFFENDING_FIELD_RE = re.compile(r"set fielddata=true on \[([^\]]+)\]")
 
@@ -44,10 +43,10 @@ def _build_body(query, time_filter, fields, limit):
     if clauses:
         body["query"] = {"bool": {"filter": clauses}}
 
-    outer = {"terms": {"field": fields[0], "size": size, "missing": _MISSING}}
+    outer = {"terms": {"field": fields[0], "size": size}}
     if len(fields) > 1:
         outer["aggs"] = {
-            "g1": {"terms": {"field": fields[1], "size": size, "missing": _MISSING}}
+            "g1": {"terms": {"field": fields[1], "size": size}}
         }
     body["aggs"] = {"g0": outer}
     return body
