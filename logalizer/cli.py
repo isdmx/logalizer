@@ -245,18 +245,6 @@ def main(argv=None):
             print(name)
         return 0
 
-    # Bare call (no action flag, no export intent) → print help, exit 0.
-    has_action = (args.init or args.ping or args.list_spaces or args.list_indices
-                  or args.list_fields or args.count or args.index)
-    has_export_intent = bool(args.query or args.fields or args.from_iso or args.to_iso
-                             or args.out or args.fmt != "csv")
-
-    if not has_action and not has_export_intent:
-        parser.print_help()
-        return 0
-    if not has_action and has_export_intent:
-        return _err("--index is required for export", 2)
-
     try:
         cfg = load_config()
 
@@ -271,6 +259,15 @@ def main(argv=None):
 
         if args.ping:
             return ping.run_ping(settings, config_file_path())
+
+        # Truly bare (no action, no export intent, no resolved index) → help.
+        has_anything = (args.list_spaces or args.list_indices or args.list_fields
+                        or args.count or args.query or args.fields or args.from_iso
+                        or args.to_iso or args.out or args.fmt != "csv"
+                        or settings.index)
+        if not has_anything:
+            parser.print_help()
+            return 0
 
         if not settings.url or not settings.username or not settings.password:
             return _err(

@@ -2,7 +2,7 @@ import io
 import json
 import os
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import redirect_stdout
 from unittest import mock
 
 from logalizer import cli, config
@@ -244,7 +244,8 @@ class TestExportBackendBranch(unittest.TestCase):
 class TestBareCall(unittest.TestCase):
     def test_bare_call_prints_help_and_exits_zero(self):
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        with redirect_stdout(buf), \
+             mock.patch("logalizer.cli.load_config", return_value={}):
             rc = cli.main([])
         self.assertEqual(rc, 0)
         out = buf.getvalue()
@@ -267,28 +268,39 @@ class TestBareCall(unittest.TestCase):
 
 
 class TestExportIntentWithoutIndex(unittest.TestCase):
-    def test_query_without_index_errors(self):
-        buf = io.StringIO()
-        err = io.StringIO()
-        with redirect_stdout(buf), redirect_stderr(err), \
-             mock.patch("logalizer.cli.load_config", return_value={}):
-            rc = cli.main(["--query", "level:error"])
-        self.assertEqual(rc, 2)
-        self.assertIn("--index is required", err.getvalue())
-
-    def test_fields_without_index_errors(self):
+    def test_truly_bare_still_prints_help(self):
         buf = io.StringIO()
         with redirect_stdout(buf), \
              mock.patch("logalizer.cli.load_config", return_value={}):
-            rc = cli.main(["--fields", "a,b", "--format", "markdown"])
-        self.assertEqual(rc, 2)
-
-    def test_truly_bare_still_prints_help(self):
-        buf = io.StringIO()
-        with redirect_stdout(buf):
             rc = cli.main([])
         self.assertEqual(rc, 0)
         self.assertIn("usage:", buf.getvalue().lower())
+
+
+class TestConfigDefaultIndexSatisfiesExport(unittest.TestCase):
+    def test_query_uses_config_index(self):
+        # Regression: a config-provided index satisfies export with no --index flag.
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p",
+                                                     space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n"), \
+             mock.patch("sys.stdout.write") as w:
+            rc = cli.main(["--query", "level:error", "--fields", "a,b"])
+        self.assertEqual(rc, 0)
+        self.assertIn("1,2", w.call_args[0][0])
+
+    def test_no_index_no_config_still_errors(self):
+        # No --index flag and no config index → export intent still exits 2, not help.
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p",
+                                                     space="default")), \
+             mock.patch("logalizer.cli.Client"):
+            rc = cli.main(["--query", "level:error"])
+        self.assertEqual(rc, 2)
 
 
 class TestInitProfileOrdering(unittest.TestCase):
