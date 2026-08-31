@@ -164,5 +164,22 @@ class TestProfiles(unittest.TestCase):
         self.assertEqual(s.url, "https://env")
 
 
+class TestExportBackend(unittest.TestCase):
+    def test_default_is_reporting(self):
+        s = config.build_settings({}, {}, space=None)
+        self.assertEqual(s.export_backend, "reporting")
+
+    def test_reads_from_defaults(self):
+        cfg = {"kibana": {"url": "u"}, "defaults": {"export_backend": "search"}}
+        s = config.build_settings({}, cfg, space=None)
+        self.assertEqual(s.export_backend, "search")
+
+    def test_reads_from_profile(self):
+        cfg = {"profile.prod": {"url": "u", "username": "x", "password": "y",
+                                "export_backend": "search"}}
+        s = config.build_settings({}, cfg, profile="prod")
+        self.assertEqual(s.export_backend, "search")
+
+
 if __name__ == "__main__":
     unittest.main()

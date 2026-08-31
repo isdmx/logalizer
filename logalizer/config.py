@@ -101,6 +101,7 @@ class Settings:
     fields: str = None
     timeout: int = 120
     insecure: bool = False
+    export_backend: str = "reporting"
 
 
 def build_settings(env, cfg, space=None, index=None, fields=None,
@@ -119,6 +120,8 @@ def build_settings(env, cfg, space=None, index=None, fields=None,
     password = env.get("KIBANA_PASSWORD") or kb.get("password", "")
 
     resolved_space = space or env.get("KIBANA_SPACE") or df.get("space", "default")
+
+    export_backend = df.get("export_backend", "reporting")
 
     resolved_timeout = timeout
     if resolved_timeout is None and df.get("timeout"):
@@ -142,4 +145,5 @@ def build_settings(env, cfg, space=None, index=None, fields=None,
         fields=fields if fields else df.get("fields"),
         timeout=resolved_timeout,
         insecure=insecure,
+        export_backend=export_backend,
     )
