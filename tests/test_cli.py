@@ -2,7 +2,7 @@ import io
 import json
 import os
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 from logalizer import cli, config
@@ -264,6 +264,31 @@ class TestBareCall(unittest.TestCase):
             rc = cli.main(["--index", "logs-*"])
         self.assertEqual(rc, 0)
         self.assertIn("1,2", w.call_args[0][0])
+
+
+class TestExportIntentWithoutIndex(unittest.TestCase):
+    def test_query_without_index_errors(self):
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err), \
+             mock.patch("logalizer.cli.load_config", return_value={}):
+            rc = cli.main(["--query", "level:error"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--index is required", err.getvalue())
+
+    def test_fields_without_index_errors(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf), \
+             mock.patch("logalizer.cli.load_config", return_value={}):
+            rc = cli.main(["--fields", "a,b", "--format", "markdown"])
+        self.assertEqual(rc, 2)
+
+    def test_truly_bare_still_prints_help(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = cli.main([])
+        self.assertEqual(rc, 0)
+        self.assertIn("usage:", buf.getvalue().lower())
 
 
 class TestInitProfileOrdering(unittest.TestCase):
