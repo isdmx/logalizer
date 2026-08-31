@@ -6,7 +6,7 @@ from collections import defaultdict
 
 
 def _cell(v):
-    return v.replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+    return str(v).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
 
 
 def _flatten_leaves(nodes, prefix=()):

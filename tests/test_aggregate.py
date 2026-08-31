@@ -43,5 +43,22 @@ class TestRender(unittest.TestCase):
         self.assertIn("error", out)
 
 
+class TestMarkdownNumericKey(unittest.TestCase):
+    def test_markdown_numeric_key(self):
+        result = {"groups": [{"key": 200, "count": 10}, {"key": 500, "count": 3}],
+                  "total": 13, "distinct": 2, "truncated": False}
+        out = aggregate.to_markdown(result, ["status"])
+        self.assertIn("| 200 | 10 |", out)
+        self.assertIn("| 500 | 3 |", out)
+
+    def test_markdown_pivot_numeric_subkeys(self):
+        result = {"groups": [
+            {"key": "error", "count": 8, "subgroups": [{"key": 500, "count": 5}, {"key": 502, "count": 3}]},
+        ], "total": 8, "distinct": 1, "truncated": False}
+        out = aggregate.to_markdown(result, ["level", "status"])
+        self.assertIn("| 500 |", out)  # numeric column header rendered
+        self.assertIn("| 5 |", out)
+
+
 if __name__ == "__main__":
     unittest.main()
