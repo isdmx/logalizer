@@ -16,6 +16,7 @@ class _Args:
         self.space = kw.get("space")
         self.index = kw.get("index")
         self.insecure = kw.get("insecure", False)
+        self.profile = kw.get("profile")
 
 
 class _FakeClient:
@@ -99,6 +100,30 @@ class TestRunInit(unittest.TestCase):
         cfg = load_config(d)
         self.assertEqual(cfg["kibana"]["url"], "https://new")
         self.assertEqual(cfg["defaults"]["fields"], "@timestamp,level")  # preserved
+
+
+class TestRunInitProfile(unittest.TestCase):
+    def test_init_profile_writes_flat_section(self):
+        d = Path(tempfile.mkdtemp()) / "config.ini"
+        args = _Args(url="https://p", username="u", password="pw", profile="staging")
+        rc = init.run_init(args, {}, config_path=d)
+        self.assertEqual(rc, 0)
+        cfg = load_config(d)
+        self.assertIn("profile.staging", cfg)
+        self.assertEqual(cfg["profile.staging"]["url"], "https://p")
+        self.assertEqual(cfg["profile.staging"]["username"], "u")
+        self.assertEqual(cfg["profile.staging"]["password"], "pw")
+        self.assertNotIn("kibana", cfg)  # legacy blocks NOT written
+
+    def test_init_profile_merges_existing(self):
+        d = Path(tempfile.mkdtemp()) / "config.ini"
+        write_config({"profile.staging": {"url": "https://old", "username": "old", "password": "old", "space": "default"}}, path=d)
+        args = _Args(url="https://new", username="u2", password="p2", profile="staging")
+        rc = init.run_init(args, {}, config_path=d)
+        self.assertEqual(rc, 0)
+        cfg = load_config(d)
+        self.assertEqual(cfg["profile.staging"]["url"], "https://new")
+        self.assertEqual(cfg["profile.staging"]["space"], "default")  # preserved
 
 
 class TestRunInitInteractive(unittest.TestCase):

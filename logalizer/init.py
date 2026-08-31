@@ -110,15 +110,30 @@ def run_init(args, env, config_path=None):
         return 2
 
     merged = {section: dict(items) for section, items in existing.items()}
-    merged.setdefault("kibana", {}).update({
-        "url": url, "username": username, "password": password,
-        "insecure": "true" if insecure else "false",
-    })
-    merged.setdefault("defaults", {}).update({"space": space})
-    if index:
-        merged["defaults"]["index"] = index
+
+    profile = getattr(args, "profile", None)
+    if profile:
+        section = f"profile.{profile}"
+        flat = {
+            "url": url,
+            "username": username,
+            "password": password,
+            "insecure": "true" if insecure else "false",
+            "space": space,
+        }
+        if index:
+            flat["index"] = index
+        merged.setdefault(section, {}).update(flat)
     else:
-        merged["defaults"].pop("index", None)
+        merged.setdefault("kibana", {}).update({
+            "url": url, "username": username, "password": password,
+            "insecure": "true" if insecure else "false",
+        })
+        merged.setdefault("defaults", {}).update({"space": space})
+        if index:
+            merged["defaults"]["index"] = index
+        else:
+            merged["defaults"].pop("index", None)
 
     path = write_config(merged, path=config_path)
     print(f"Wrote {path} (password: ***)")
