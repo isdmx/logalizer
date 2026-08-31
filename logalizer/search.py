@@ -1,4 +1,6 @@
 """Server-side count aggregation via Kibana's internal search endpoint."""
+import csv
+import io
 import json
 import re
 
@@ -6,6 +8,9 @@ from logalizer.client import ClientError, raise_for_status
 
 _ENDPOINT = "/internal/search/es"
 _DEFAULT_SIZE = 10000
+_EXPORT_PAGE_SIZE = 500
+_MAX_EXPORT_DOCS = 10000
+_EXPORT_SORT = [{"@timestamp": "asc"}, {"_id": "asc"}]
 _TEXT_FIELD_ERROR = "Text fields are not optimised"
 _OFFENDING_FIELD_RE = re.compile(r"set fielddata=true on \[([^\]]+)\]")
 
@@ -115,3 +120,88 @@ def run_count(client, index, query, time_filter, fields, limit):
     if raw_response.get("_shards", {}).get("total", 0) == 0:
         raise ClientError(f"index pattern {index!r} matched no indices", 2)
     return _map_result(raw_response, depth)
+
+
+def _build_export_body(query, time_filter, columns):
+    body: dict[str, object] = {
+        "size": _EXPORT_PAGE_SIZE,
+        "track_total_hits": True,
+        "sort": _EXPORT_SORT,
+    }
+
+    clauses = []
+    if time_filter is not None:
+        clauses.append(time_filter["query"])
+    if query:
+        clauses.append({"query_string": {"query": query}})
+    if clauses:
+        body["query"] = {"bool": {"filter": clauses}}
+
+    body["_source"] = list(columns) if columns else True
+    return body
+
+
+def _get_field(source, name):
+    if name in source:
+        return source[name]
+    value = source
+    for part in name.split("."):
+        if isinstance(value, dict) and part in value:
+            value = value[part]
+        else:
+            return ""
+    return value
+
+
+def _stringify(value):
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def run_export(client, index, query, time_filter, columns, limit):
+    """Fetch matching documents (via search_after paging) and return CSV text."""
+    max_docs = limit if limit is not None else _MAX_EXPORT_DOCS
+    rows = []
+    search_after = None
+
+    while True:
+        body = _build_export_body(query, time_filter, columns)
+        if search_after is not None:
+            body["search_after"] = search_after
+        status, text = client.request(
+            "POST", _ENDPOINT,
+            {"params": {"index": index, "body": body}},
+        )
+
+        raise_for_status(status, text, "export search")
+        raw_response = json.loads(text)["rawResponse"]
+        if raw_response.get("_shards", {}).get("total", 0) == 0:
+            raise ClientError(f"index pattern {index!r} matched no indices", 2)
+
+        hits = raw_response.get("hits", {}).get("hits", [])
+        total = raw_response.get("hits", {}).get("total", 0)
+        rows.extend(hit.get("_source", {}) for hit in hits)
+
+        if not hits or len(rows) >= max_docs or len(rows) >= total:
+            break
+        search_after = hits[-1]["sort"]
+
+    rows = rows[:max_docs]
+
+    if columns:
+        header = list(columns)
+    else:
+        keys: set[str] = set()
+        for row in rows:
+            keys.update(row.keys())
+        header = sorted(keys)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(header)
+    for row in rows:
+        writer.writerow([_stringify(_get_field(row, name)) for name in header])
+    return buf.getvalue()

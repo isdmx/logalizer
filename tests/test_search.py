@@ -312,5 +312,52 @@ class TestQueryClauses(unittest.TestCase):
         self.assertIn("query_string", filt[0])
 
 
+class TestRunExport(unittest.TestCase):
+    def _fake(self, pages):
+        # pages: list of (status, body_str) responses in call order
+        class F:
+            def __init__(self, pages):
+                self.pages = list(pages)
+                self.calls = []
+
+            def request(self, method, path, body=None):
+                self.calls.append((method, path, body))
+                return self.pages.pop(0)
+
+        return F(pages)
+
+    def test_single_page_export(self):
+        raw = {"rawResponse": {"hits": {"total": 2, "hits": [
+            {"_source": {"@timestamp": "t1", "level": "info"}, "sort": [1, "a"]},
+            {"_source": {"@timestamp": "t2", "level": "error"}, "sort": [2, "b"]},
+        ]}, "_shards": {"total": 1}}}
+        f = self._fake([(200, json.dumps(raw))])
+        csv_text = search.run_export(f, "idx", "", None, ["@timestamp", "level"], None)
+        self.assertEqual(
+            csv_text.strip().split("\n"), ["@timestamp,level", "t1,info", "t2,error"])
+
+    def test_search_after_paging(self):
+        page1 = {"rawResponse": {"hits": {"total": 3, "hits": [
+            {"_source": {"v": "a"}, "sort": [1, "a"]},
+            {"_source": {"v": "b"}, "sort": [2, "b"]},
+        ]}, "_shards": {"total": 1}}}
+        page2 = {"rawResponse": {"hits": {"total": 3, "hits": [
+            {"_source": {"v": "c"}, "sort": [3, "c"]},
+        ]}, "_shards": {"total": 1}}}
+        f = self._fake([(200, json.dumps(page1)), (200, json.dumps(page2))])
+        csv_text = search.run_export(f, "idx", "", None, ["v"], None)
+        self.assertEqual(csv_text.strip().split("\n"), ["v", "a", "b", "c"])
+        # second request must carry search_after from page1's last sort value
+        second_body = f.calls[1][2]["params"]["body"]
+        self.assertEqual(second_body["search_after"], [2, "b"])
+
+    def test_no_index_raises(self):
+        raw = {"rawResponse": {"hits": {"total": 0, "hits": []}, "_shards": {"total": 0}}}
+        f = self._fake([(200, json.dumps(raw))])
+        with self.assertRaises(ClientError) as ctx:
+            search.run_export(f, "nope-*", "", None, ["v"], None)
+        self.assertEqual(ctx.exception.exit_code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
