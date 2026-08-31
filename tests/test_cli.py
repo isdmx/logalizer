@@ -223,6 +223,23 @@ class TestExportBackendBranch(unittest.TestCase):
         self.assertEqual(rc, 0)
         re.assert_not_called()   # search NOT used when export_backend is default
 
+    def test_export_backend_flag_passed_to_build_settings(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p",
+                                                     space="default", index="logs-*",
+                                                     export_backend="search")) as bs, \
+             mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.search.run_export", return_value="a,b\n1,2\n"), \
+             mock.patch("sys.stdout.write"):
+            rc = cli.main(["--index", "logs-*", "--export-backend", "search"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(bs.call_args.kwargs.get("export_backend"), "search")
+
+    def test_export_backend_flag_in_help_json(self):
+        flags = [f["flag"] for f in cli.help_json()["flags"]]
+        self.assertIn("--export-backend", flags)
+
 
 class TestBareCall(unittest.TestCase):
     def test_bare_call_prints_help_and_exits_zero(self):

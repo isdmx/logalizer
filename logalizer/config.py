@@ -105,7 +105,8 @@ class Settings:
 
 
 def build_settings(env, cfg, space=None, index=None, fields=None,
-                   timeout=None, insecure=None, profile=None) -> Settings:
+                   timeout=None, insecure=None, profile=None,
+                   export_backend=None) -> Settings:
     """Resolve settings with precedence flag > env > config > default."""
     if profile:
         selected = select_profile(cfg, profile)
@@ -121,7 +122,7 @@ def build_settings(env, cfg, space=None, index=None, fields=None,
 
     resolved_space = space or env.get("KIBANA_SPACE") or df.get("space", "default")
 
-    export_backend = df.get("export_backend", "reporting")
+    export_backend = export_backend or df.get("export_backend", "reporting")
 
     resolved_timeout = timeout
     if resolved_timeout is None and df.get("timeout"):

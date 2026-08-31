@@ -181,5 +181,17 @@ class TestExportBackend(unittest.TestCase):
         self.assertEqual(s.export_backend, "search")
 
 
+class TestExportBackendFlag(unittest.TestCase):
+    def test_flag_overrides_config(self):
+        cfg = {"kibana": {}, "defaults": {"export_backend": "search"}}
+        s = config.build_settings({}, cfg, export_backend="reporting")
+        self.assertEqual(s.export_backend, "reporting")
+
+    def test_flag_none_uses_config(self):
+        cfg = {"kibana": {}, "defaults": {"export_backend": "search"}}
+        s = config.build_settings({}, cfg, export_backend=None)
+        self.assertEqual(s.export_backend, "search")
+
+
 if __name__ == "__main__":
     unittest.main()

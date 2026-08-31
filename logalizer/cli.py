@@ -105,6 +105,7 @@ OUTPUT OPTIONS
     -o, --out PATH         write CSV to file (default: stdout)
     --format FMT          output format: csv (default), json, jsonl, markdown
     --limit N             max rows to output (default: unlimited)
+    --export-backend B    export backend: reporting (default) or search
     --timeout SECONDS      max wait for the async job (default: 120)
     --insecure             skip TLS cert verification (self-signed servers)
     -v, --verbose          progress messages to stderr
@@ -165,6 +166,8 @@ def help_json():
             {"flag": "--out", "alias": "-o", "type": "path", "default": "stdout"},
             {"flag": "--format", "type": "string", "choices": ["csv", "json", "jsonl", "markdown"], "default": "csv"},
             {"flag": "--limit", "type": "int", "default": "unlimited"},
+            {"flag": "--export-backend", "type": "string", "choices": ["reporting", "search"],
+             "default": "profile setting, else reporting"},
             {"flag": "--count", "type": "bool", "default": "false"},
             {"flag": "--group-by", "type": "string", "format": "field[,field]"},
             {"flag": "--space", "alias": "-s", "type": "string", "default": "default"},
@@ -203,6 +206,8 @@ def build_parser():
                    default="csv", help="output format (default: csv)")
     p.add_argument("--limit", type=int, default=None,
                    help="max rows to output (default: unlimited)")
+    p.add_argument("--export-backend", choices=["reporting", "search"], default=None,
+                   help="export backend: reporting (default) or search fallback")
     p.add_argument("-o", "--out", help="write CSV to file (default: stdout)")
     p.add_argument("--timeout", type=int, help="max job wait in seconds (default 120)")
     p.add_argument("--insecure", action="store_true", help="skip TLS verification")
@@ -255,7 +260,7 @@ def main(argv=None):
         settings = build_settings(
             os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
             timeout=args.timeout, insecure=(True if args.insecure else None),
-            profile=args.profile,
+            profile=args.profile, export_backend=args.export_backend,
         )
 
         if args.ping:
