@@ -139,6 +139,18 @@ class TestProfiles(unittest.TestCase):
         self.assertEqual(sel["kibana"]["url"], "https://l")
         self.assertEqual(sel["defaults"]["space"], "default")
 
+    def test_select_profile_default_resolves_legacy(self):
+        cfg = {"kibana": {"url": "https://l", "username": "lu"},
+               "defaults": {"space": "default"}}
+        sel = config.select_profile(cfg, "default")
+        self.assertEqual(sel["kibana"]["url"], "https://l")
+        self.assertEqual(sel["defaults"]["space"], "default")
+
+    def test_build_settings_default_profile_resolves_legacy(self):
+        cfg = {"kibana": {"url": "https://l", "username": "u", "password": "p"}}
+        s = config.build_settings({}, cfg, profile="default")
+        self.assertEqual(s.url, "https://l")
+
     def test_build_settings_uses_profile(self):
         cfg = {"profile.prod": {"url": "https://p", "username": "u", "password": "pw",
                                 "space": "aiorch"}}

@@ -68,8 +68,12 @@ def list_profiles(cfg) -> list:
 
 
 def select_profile(cfg, name) -> dict:
-    """Resolve ``name`` into a ``{"kibana": ..., "defaults": ...}`` dict."""
-    if not name:
+    """Resolve ``name`` into a ``{"kibana": ..., "defaults": ...}`` dict.
+
+    ``None``/empty and the literal ``"default"`` both resolve to the legacy
+    ``[kibana]``/``[defaults]`` blocks.
+    """
+    if not name or name == "default":
         return {
             "kibana": cfg.get("kibana", {}),
             "defaults": cfg.get("defaults", {}),
