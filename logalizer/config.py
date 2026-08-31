@@ -57,12 +57,14 @@ _KIBANA_KEYS = {"url", "username", "password", "insecure"}
 
 
 def list_profiles(cfg) -> list:
-    """Return sorted profile names for keys matching the ``profile.`` prefix."""
-    return sorted(
-        key[len("profile."):]
-        for key in cfg
-        if key.startswith("profile.")
-    )
+    """Return sorted profile names, including ``default`` when legacy config exists."""
+    names = set()
+    if "kibana" in cfg or "defaults" in cfg:
+        names.add("default")
+    for key in cfg:
+        if key.startswith("profile."):
+            names.add(key[len("profile."):])
+    return sorted(names)
 
 
 def select_profile(cfg, name) -> dict:

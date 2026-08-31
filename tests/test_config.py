@@ -108,6 +108,15 @@ class TestWriteConfig(unittest.TestCase):
 class TestProfiles(unittest.TestCase):
     def test_list_profiles(self):
         cfg = {"profile.prod": {}, "profile.staging": {}, "kibana": {}, "defaults": {}}
+        self.assertEqual(config.list_profiles(cfg), ["default", "prod", "staging"])
+
+    def test_list_profiles_includes_legacy_default(self):
+        cfg = {"kibana": {"url": "https://l"}, "defaults": {"space": "default"},
+               "profile.staging": {}}
+        self.assertEqual(config.list_profiles(cfg), ["default", "staging"])
+
+    def test_list_profiles_no_default_when_no_legacy(self):
+        cfg = {"profile.prod": {}, "profile.staging": {}}
         self.assertEqual(config.list_profiles(cfg), ["prod", "staging"])
 
     def test_select_profile_splits_flat_keys(self):
