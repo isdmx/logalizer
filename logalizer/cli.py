@@ -248,14 +248,15 @@ def main(argv=None):
 
     try:
         cfg = load_config()
+
+        if args.init:
+            return init.run_init(args, os.environ, config_path=None)
+
         settings = build_settings(
             os.environ, cfg, space=args.space, index=args.index, fields=args.fields,
             timeout=args.timeout, insecure=(True if args.insecure else None),
             profile=args.profile,
         )
-
-        if args.init:
-            return init.run_init(args, os.environ, config_path=None)
 
         if args.ping:
             return ping.run_ping(settings, config_file_path())

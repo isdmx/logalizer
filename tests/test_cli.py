@@ -219,6 +219,20 @@ class TestBareCall(unittest.TestCase):
         self.assertIn("1,2", w.call_args[0][0])
 
 
+class TestInitProfileOrdering(unittest.TestCase):
+    def test_init_with_profile_bypasses_build_settings(self):
+        # build_settings must NOT be called when --init is present,
+        # otherwise --init --profile NEWPROFILE would raise "unknown profile".
+        with mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.init.run_init", return_value=0) as ri, \
+             mock.patch("logalizer.cli.build_settings") as bs:
+            rc = cli.main(["--init", "--profile", "brandnew",
+                           "--url", "https://k", "--username", "u", "--password", "p"])
+        self.assertEqual(rc, 0)
+        ri.assert_called_once()
+        bs.assert_not_called()
+
+
 class TestProfiles(unittest.TestCase):
     def test_list_profiles_flag(self):
         with mock.patch("logalizer.cli.load_config", return_value={"profile.prod": {}, "profile.staging": {}}), \
