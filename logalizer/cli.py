@@ -303,24 +303,28 @@ def main(argv=None):
         else:
             columns = [c.strip() for c in settings.fields.split(",") if c.strip()] if settings.fields else None
 
-            index_id = indexpatterns.resolve_index_pattern(
-                client, settings.space, settings.index)
-            if not index_id:
-                return _err(
-                    f"index pattern {settings.index!r} not found in space "
-                    f"{settings.space!r}. Use --list-indices to see available patterns.", 2)
+            if settings.export_backend == "search":
+                csv_text = search.run_export(
+                    client, settings.index, args.query, time_filter, columns, args.limit)
+            else:
+                index_id = indexpatterns.resolve_index_pattern(
+                    client, settings.space, settings.index)
+                if not index_id:
+                    return _err(
+                        f"index pattern {settings.index!r} not found in space "
+                        f"{settings.space!r}. Use --list-indices to see available patterns.", 2)
 
-            if args.verbose:
-                print(f"submitting CSV job (index={settings.index}, space={settings.space})...",
-                      file=sys.stderr)
-            job_id = reporting.submit(client, settings.space, index_id,
-                                      args.query, time_filter, columns)
-            if args.verbose:
-                print(f"job {job_id} submitted, waiting...", file=sys.stderr)
-            reporting.poll(client, job_id, timeout=settings.timeout)
-            if args.verbose:
-                print("job completed, downloading...", file=sys.stderr)
-            csv_text = reporting.download(client, job_id)
+                if args.verbose:
+                    print(f"submitting CSV job (index={settings.index}, space={settings.space})...",
+                          file=sys.stderr)
+                job_id = reporting.submit(client, settings.space, index_id,
+                                          args.query, time_filter, columns)
+                if args.verbose:
+                    print(f"job {job_id} submitted, waiting...", file=sys.stderr)
+                reporting.poll(client, job_id, timeout=settings.timeout)
+                if args.verbose:
+                    print("job completed, downloading...", file=sys.stderr)
+                csv_text = reporting.download(client, job_id)
             output = fmt.render(args.fmt, csv_text, args.limit)
 
         if args.out:

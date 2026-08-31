@@ -194,6 +194,36 @@ class TestCountMode(unittest.TestCase):
         self.assertIn("--group-by", flags)
 
 
+class TestExportBackendBranch(unittest.TestCase):
+    def test_search_backend_calls_run_export(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p",
+                                                     space="default", index="logs-*", export_backend="search")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.search.run_export", return_value="a,b\n1,2\n") as re, \
+             mock.patch("logalizer.cli.reporting.submit") as rs, \
+             mock.patch("sys.stdout.write"):
+            rc = cli.main(["--index", "logs-*", "--fields", "a,b"])
+        self.assertEqual(rc, 0)
+        re.assert_called_once()
+        rs.assert_not_called()   # reporting path NOT used
+
+    def test_reporting_backend_still_default(self):
+        with mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u", password="p",
+                                                     space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n"), \
+             mock.patch("logalizer.cli.search.run_export") as re, \
+             mock.patch("sys.stdout.write"):
+            rc = cli.main(["--index", "logs-*", "--fields", "a,b"])
+        self.assertEqual(rc, 0)
+        re.assert_not_called()   # search NOT used when export_backend is default
+
+
 class TestBareCall(unittest.TestCase):
     def test_bare_call_prints_help_and_exits_zero(self):
         buf = io.StringIO()
