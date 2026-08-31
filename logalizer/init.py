@@ -61,8 +61,16 @@ def _pick_numbered(items, title, default):
 
 def run_init(args, env, config_path=None):
     existing = load_config(config_path)
-    kb = existing.get("kibana", {})
-    df = existing.get("defaults", {})
+    profile = getattr(args, "profile", None)
+
+    if profile:
+        section = f"profile.{profile}"
+        psec = existing.get(section, {})
+        kb = {k: psec[k] for k in ("url", "username", "password", "insecure") if k in psec}
+        df = {k: psec[k] for k in ("space", "index", "fields", "timeout") if k in psec}
+    else:
+        kb = existing.get("kibana", {})
+        df = existing.get("defaults", {})
 
     url = args.url or kb.get("url", "")
     username = args.username or kb.get("username", "")

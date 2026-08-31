@@ -126,6 +126,32 @@ class TestRunInitProfile(unittest.TestCase):
         self.assertEqual(cfg["profile.staging"]["space"], "default")  # preserved
 
 
+class TestInitProfileSeeding(unittest.TestCase):
+    def test_new_profile_prompts_instead_of_copying_legacy(self):
+        # Existing legacy config must NOT pre-fill a NEW profile's fields.
+        d = Path(tempfile.mkdtemp()) / "config.ini"
+        write_config({"kibana": {"url": "https://legacy", "username": "lu", "password": "lp"},
+                      "defaults": {"space": "default"}}, path=d)
+        args = _Args(profile="prod")
+        fake = _FakeClient([
+            (200, '{"version":{"number":"7.17.29"}}'),
+            (200, '{"username":"bob","roles":[]}'),
+        ])
+        # prompts: url, username, insecure, space pick, index pick
+        answers = iter(["https://new", "nu", "", "1", "1"])
+        with mock.patch("logalizer.init.Client", return_value=fake), \
+             mock.patch("logalizer.init.indexpatterns.list_spaces", return_value=["s1", "s2"]), \
+             mock.patch("logalizer.init.indexpatterns.list_index_patterns", return_value=["logs-*", "app-*"]), \
+             mock.patch("builtins.input", side_effect=lambda *a: next(answers)), \
+             mock.patch("getpass.getpass", return_value="np"):
+            rc = init.run_init(args, {}, config_path=d)
+        self.assertEqual(rc, 0)
+        cfg = load_config(d)
+        self.assertEqual(cfg["profile.prod"]["url"], "https://new")
+        self.assertEqual(cfg["profile.prod"]["username"], "nu")
+        self.assertEqual(cfg["profile.prod"]["password"], "np")
+
+
 class TestRunInitInteractive(unittest.TestCase):
     def test_validates_and_picks_from_lists(self):
         d = Path(tempfile.mkdtemp()) / "config.ini"
