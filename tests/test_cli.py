@@ -267,6 +267,22 @@ class TestBareCall(unittest.TestCase):
         self.assertIn("1,2", w.call_args[0][0])
 
 
+class TestBareCallWithConfigIndex(unittest.TestCase):
+    def test_bare_call_prints_help_even_with_config_index(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf), \
+             mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.reporting.submit") as rs:
+            rc = cli.main([])
+        self.assertEqual(rc, 0)
+        self.assertIn("usage:", buf.getvalue().lower())
+        rs.assert_not_called()   # must NOT export
+
+
 class TestExportIntentWithoutIndex(unittest.TestCase):
     def test_truly_bare_still_prints_help(self):
         buf = io.StringIO()

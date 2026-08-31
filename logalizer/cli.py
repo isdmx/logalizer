@@ -260,12 +260,12 @@ def main(argv=None):
         if args.ping:
             return ping.run_ping(settings, config_file_path())
 
-        # Truly bare (no action, no export intent, no resolved index) → help.
-        has_anything = (args.list_spaces or args.list_indices or args.list_fields
-                        or args.count or args.query or args.fields or args.from_iso
-                        or args.to_iso or args.out or args.fmt != "csv"
-                        or settings.index)
-        if not has_anything:
+        # Truly bare (no action flag, no export-intent flag) → print help, exit 0.
+        has_intent = (args.list_spaces or args.list_indices or args.list_fields
+                      or args.count or args.query or args.fields or args.from_iso
+                      or args.to_iso or args.out or args.fmt != "csv"
+                      or args.index)
+        if not has_intent:
             parser.print_help()
             return 0
 
