@@ -2,10 +2,12 @@
 import csv
 import io
 import json
+import sys
 
 
 def parse_csv(text):
     """Return (header, rows) from CSV text. Empty input -> ([], [])."""
+    csv.field_size_limit(sys.maxsize)
     reader = csv.reader(io.StringIO(text))
     all_rows = list(reader)
     if not all_rows:

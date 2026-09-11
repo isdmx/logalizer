@@ -23,6 +23,13 @@ class TestParseCsv(unittest.TestCase):
         self.assertEqual(header, [])
         self.assertEqual(rows, [])
 
+    def test_large_field_does_not_crash(self):
+        big = "x" * 200000
+        text = 'a,b\n1,"' + big + '"\n'
+        header, rows = fmt.parse_csv(text)
+        self.assertEqual(header, ["a", "b"])
+        self.assertEqual(rows[0][1], big)
+
 
 class TestToCsv(unittest.TestCase):
     def test_passthrough_without_limit(self):

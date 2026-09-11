@@ -364,5 +364,48 @@ class TestProfiles(unittest.TestCase):
         self.assertIn("--list-profiles", flags)
 
 
+class TestVersionFlag(unittest.TestCase):
+    def test_version_flag_prints_version(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = cli.main(["--version"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(buf.getvalue().strip(), cli.__version__)
+
+    def test_capital_V_alias(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = cli.main(["-V"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(buf.getvalue().strip(), cli.__version__)
+
+
+class TestOutDash(unittest.TestCase):
+    def test_out_dash_writes_stdout_not_file(self):
+        with mock.patch("logalizer.cli.load_config", return_value={}), \
+             mock.patch("logalizer.cli.build_settings",
+                        return_value=config.Settings(url="https://k", username="u",
+                                                     password="p", space="default", index="logs-*")), \
+             mock.patch("logalizer.cli.Client"), \
+             mock.patch("logalizer.cli.indexpatterns.resolve_index_pattern", return_value="idx"), \
+             mock.patch("logalizer.cli.reporting.submit", return_value="j1"), \
+             mock.patch("logalizer.cli.reporting.poll"), \
+             mock.patch("logalizer.cli.reporting.download", return_value="a,b\n1,2\n"), \
+             mock.patch("sys.stdout.write") as w, \
+             mock.patch("builtins.open") as op:
+            rc = cli.main(["--index", "logs-*", "-o", "-"])
+        self.assertEqual(rc, 0)
+        self.assertIn("1,2", w.call_args[0][0])
+        op.assert_not_called()
+
+
+class TestHelpMetadata(unittest.TestCase):
+    def test_description_has_project_metadata(self):
+        desc = cli.build_parser().description
+        self.assertIn("https://github.com/isdmx/logalizer", desc)
+        self.assertIn("Version:", desc)
+        self.assertIn("License:", desc)
+
+
 if __name__ == "__main__":
     unittest.main()

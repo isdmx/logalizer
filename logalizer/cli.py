@@ -6,6 +6,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 
+from logalizer import __version__
 from logalizer import reporting, indexpatterns, search
 from logalizer import aggregate
 from logalizer import format as fmt
@@ -102,7 +103,7 @@ PROFILES
     --list-profiles       print configured profile names (stdout), one per line.
 
 OUTPUT OPTIONS
-    -o, --out PATH         write CSV to file (default: stdout)
+    -o, --out PATH         write CSV to file (default: stdout; '-' = stdout)
     --format FMT          output format: csv (default), json, jsonl, markdown
     --limit N             max rows to output (default: unlimited)
     --export-backend B    export backend: reporting (default) or search
@@ -189,7 +190,12 @@ def help_json():
 def build_parser():
     p = argparse.ArgumentParser(
         prog="logalizer",
-        description="Export Kibana logs as CSV (Kibana 7.17 Reporting API)",
+        description=(
+            f"Export Kibana logs as CSV (Kibana 7.17 Reporting API)\n\n"
+            f"Repository: https://github.com/isdmx/logalizer\n"
+            f"Version:    {__version__}\n"
+            f"License:    MIT"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=HELP_TEXT,
     )
@@ -208,7 +214,7 @@ def build_parser():
                    help="max rows to output (default: unlimited)")
     p.add_argument("--export-backend", choices=["reporting", "search"], default=None,
                    help="export backend: reporting (default) or search fallback")
-    p.add_argument("-o", "--out", help="write CSV to file (default: stdout)")
+    p.add_argument("-o", "--out", help="write CSV to file (default: stdout; use '-' for stdout)")
     p.add_argument("--timeout", type=int, help="max job wait in seconds (default 120)")
     p.add_argument("--insecure", action="store_true", help="skip TLS verification")
     p.add_argument("-v", "--verbose", action="store_true", help="progress to stderr")
@@ -216,6 +222,7 @@ def build_parser():
     p.add_argument("--list-indices", action="store_true", help="list index patterns")
     p.add_argument("--list-fields", action="store_true", help="list fields for --index")
     p.add_argument("--help-json", action="store_true", help="machine-readable help")
+    p.add_argument("-V", "--version", action="store_true", help="print version and exit")
     p.add_argument("--init", action="store_true", help="configure and write config.ini")
     p.add_argument("--ping", action="store_true", help="test config + connectivity")
     p.add_argument("--profile", help="use a named connection profile")
@@ -237,6 +244,10 @@ def main(argv=None):
 
     if args.help_json:
         print(json.dumps(help_json(), indent=2))
+        return 0
+
+    if args.version:
+        print(__version__)
         return 0
 
     if args.list_profiles:
@@ -312,6 +323,9 @@ def main(argv=None):
             columns = [c.strip() for c in settings.fields.split(",") if c.strip()] if settings.fields else None
 
             if settings.export_backend == "search":
+                if args.verbose:
+                    print(f"exporting via search backend (index={settings.index})...",
+                          file=sys.stderr)
                 csv_text = search.run_export(
                     client, settings.index, args.query, time_filter, columns, args.limit)
             else:
@@ -335,7 +349,7 @@ def main(argv=None):
                 csv_text = reporting.download(client, job_id)
             output = fmt.render(args.fmt, csv_text, args.limit)
 
-        if args.out:
+        if args.out and args.out != "-":
             with open(args.out, "w", encoding="utf-8") as fh:
                 fh.write(output)
         else:
