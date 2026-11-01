@@ -123,7 +123,7 @@ CONFIGURATION & DIAGNOSTICS
                           non-interactive when all three are given via flags.
     --ping                health check: config -> TLS -> auth -> space -> index.
                           Prints one line per check; exit 0 all good, else first
-                          failure (2 config, 3 auth, 5 network).
+                          failure (2 config, 3 auth, 5 network/HTTP).
     --url, --username, --password   used only by --init (never for export).
 
 CREDENTIALS (never pass on command line)
@@ -139,9 +139,13 @@ EXIT CODES
     2  usage error (bad flags / missing required)
     3  auth or permission failure (check KIBANA_USERNAME/PASSWORD, space)
     4  job failed or timed out (see stderr for Kibana's error)
-    5  network / connection error
+    5  network / HTTP error
 
 GOTCHAS
+    - GET and POST /internal/search/es retry temporary failures up to 3 attempts;
+      GET retries HTTP 400 once. Other POST requests are never retried.
+      Retry-After is honored; requests asking for a wait over 30s are not retried.
+      Retries can extend runtime beyond a single HTTP timeout.
     - CSV export is capped by xpack.reporting.csv.maxSizeBytes (10 MB default).
       Very large exports will fail the job; narrow --query or --last.
     - Omitting --fields exports EVERY field (including _id, _index, _score,
@@ -181,7 +185,7 @@ def help_json():
             {"flag": "--password", "type": "string", "used_by": "--init"},
         ],
         "exit_codes": {"0": "success", "2": "usage", "3": "auth/permission",
-                       "4": "job failed/timeout", "5": "network"},
+                       "4": "job failed/timeout", "5": "network/HTTP"},
         "io_contract": {"stdout": "CSV data", "stderr": "diagnostics"},
         "env": ["KIBANA_URL", "KIBANA_USERNAME", "KIBANA_PASSWORD"],
     }

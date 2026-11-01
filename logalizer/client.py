@@ -1,9 +1,45 @@
 """HTTP layer: basic auth + kbn-xsrf header, urllib-backed."""
 import base64
 import json
+import random
+import socket
 import ssl
+import time
 import urllib.error
 import urllib.request
+from datetime import timezone
+from email.utils import parsedate_to_datetime
+from http.client import IncompleteRead
+from urllib.parse import urlsplit
+
+
+_RETRY_STATUSES = {408, 429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 3
+_MAX_RETRY_DELAY = 30
+
+
+def _temporary_error(error):
+    reason = getattr(error, "reason", error)
+    if isinstance(reason, socket.gaierror):
+        return reason.errno == socket.EAI_AGAIN
+    return isinstance(reason, (TimeoutError, ConnectionError, IncompleteRead))
+
+
+def _retry_delay(attempt, retry_after):
+    delay = (2 ** (attempt + 1)) * random.uniform(0.5, 1.0)
+    if retry_after:
+        try:
+            seconds = int(retry_after)
+        except ValueError:
+            try:
+                date = parsedate_to_datetime(retry_after)
+                if date.tzinfo is None:
+                    date = date.replace(tzinfo=timezone.utc)
+                seconds = date.timestamp() - time.time()
+            except (ValueError, TypeError, OverflowError):
+                return delay
+        delay = max(delay, seconds)
+    return delay
 
 
 class ClientError(Exception):
@@ -46,16 +82,44 @@ class Client:
         headers = {"Authorization": self.auth}
         if data is not None:
             headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(
-            self.base + path, data=data, method=method, headers=headers
-        )
-        req.headers["kbn-xsrf"] = "true"
-        try:
-            with urllib.request.urlopen(req, context=self._context(),
-                                        timeout=self.timeout) as resp:
-                raw = resp.read().decode("utf-8")
-                return resp.status, raw
-        except urllib.error.HTTPError as e:
-            return e.code, e.read().decode("utf-8")
-        except urllib.error.URLError as e:
-            raise ClientError(f"network error: {e.reason}", 5)
+        method = method.upper()
+        safe = method == "GET" or (
+            method == "POST" and urlsplit(path).path == "/internal/search/es")
+        retried_400 = False
+        for attempt in range(_MAX_ATTEMPTS):
+            req = urllib.request.Request(
+                self.base + path, data=data, method=method, headers=dict(headers)
+            )
+            req.headers["kbn-xsrf"] = "true"
+            retry_after = None
+            try:
+                try:
+                    response = urllib.request.urlopen(
+                        req, context=self._context(), timeout=self.timeout)
+                except urllib.error.HTTPError as error:
+                    response = error
+                with response as resp:
+                    status = resp.status
+                    if resp.headers is not None:
+                        retry_after = resp.headers.get("Retry-After")
+                    try:
+                        raw = resp.read().decode("utf-8")
+                    except (urllib.error.URLError, OSError, IncompleteRead) as error:
+                        if status < 400:
+                            raise
+                        # Preserve the HTTP policy even when its error body is truncated.
+                        reason = getattr(error, "reason", error)
+                        raw = f"could not read error response: {reason}"
+                retry_400 = status == 400 and method == "GET" and not retried_400
+                if (not safe or attempt == _MAX_ATTEMPTS - 1
+                        or (status not in _RETRY_STATUSES and not retry_400)):
+                    return status, raw
+                retried_400 = retried_400 or retry_400
+            except (urllib.error.URLError, OSError, IncompleteRead) as error:
+                if not safe or attempt == _MAX_ATTEMPTS - 1 or not _temporary_error(error):
+                    reason = getattr(error, "reason", error)
+                    raise ClientError(f"network error: {reason}", 5) from error
+            delay = _retry_delay(attempt, retry_after)
+            if delay > _MAX_RETRY_DELAY:
+                return status, raw
+            time.sleep(delay)
