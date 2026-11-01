@@ -3,7 +3,7 @@ import json
 import socket
 import ssl
 import unittest
-from contextlib import redirect_stdout
+from contextlib import ExitStack, redirect_stdout
 from email.message import Message
 from http.client import IncompleteRead
 from urllib.error import HTTPError, URLError
@@ -72,9 +72,11 @@ def response(status=200, body=b'{}', retry_after=None):
 class TestRetries(unittest.TestCase):
     def setUp(self):
         self.client = Client('https://k.example', 'u', 'p')
-        self.sleep = self.enterContext(mock.patch('time.sleep'))
-        self.enterContext(mock.patch('random.uniform', return_value=1))
-        self.enterContext(mock.patch('time.time', return_value=0))
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        self.sleep = stack.enter_context(mock.patch('time.sleep'))
+        stack.enter_context(mock.patch('random.uniform', return_value=1))
+        stack.enter_context(mock.patch('time.time', return_value=0))
 
     def test_transient_statuses_retry_only_safe_requests(self):
         for status in (408, 429, 500, 502, 503, 504):
