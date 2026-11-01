@@ -236,6 +236,17 @@ class TestRetries(unittest.TestCase):
                 if header == '5':
                     self.assertEqual(self.sleep.call_args_list, [mock.call(5), mock.call(5)])
 
+    def test_truncated_success_body_ignores_retry_after(self):
+        for method, path in [('GET', '/api/x'), ('POST', '/internal/search/es')]:
+            with self.subTest(method=method):
+                broken = response(retry_after='31')
+                broken.read = mock.Mock(side_effect=IncompleteRead(b'partial', 5))
+                self.sleep.reset_mock()
+                with mock.patch('urllib.request.urlopen', side_effect=[broken, response()]) as opening:
+                    self.assertEqual(self.client.request(method, path), (200, '{}'))
+                self.assertEqual(opening.call_count, 2)
+                self.sleep.assert_called_once_with(2)
+
 
 if __name__ == "__main__":
     unittest.main()

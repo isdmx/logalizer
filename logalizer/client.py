@@ -110,16 +110,18 @@ class Client:
                         # Preserve the HTTP policy even when its error body is truncated.
                         reason = getattr(error, "reason", error)
                         raw = f"could not read error response: {reason}"
-                retry_400 = status == 400 and method == "GET" and not retried_400
+                retry_this_400 = status == 400 and method == "GET" and not retried_400
                 if (not safe or attempt == _MAX_ATTEMPTS - 1
-                        or (status not in _RETRY_STATUSES and not retry_400)):
+                        or (status not in _RETRY_STATUSES and not retry_this_400)):
                     return status, raw
-                retried_400 = retried_400 or retry_400
+                retried_400 = retried_400 or retry_this_400
             except (urllib.error.URLError, OSError, IncompleteRead) as error:
                 if not safe or attempt == _MAX_ATTEMPTS - 1 or not _temporary_error(error):
                     reason = getattr(error, "reason", error)
                     raise ClientError(f"network error: {reason}", 5) from error
-            delay = _retry_delay(attempt, retry_after)
-            if delay > _MAX_RETRY_DELAY:
-                return status, raw
-            time.sleep(delay)
+                time.sleep(_retry_delay(attempt, None))
+            else:
+                delay = _retry_delay(attempt, retry_after)
+                if delay > _MAX_RETRY_DELAY:
+                    return status, raw
+                time.sleep(delay)
