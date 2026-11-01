@@ -10,20 +10,34 @@ def list_spaces(client):
     return [s["id"] for s in json.loads(body)]
 
 
+def _iter_index_patterns(client, space, what):
+    """Yield saved objects across all pages of the index-pattern listing."""
+    page = 1
+    seen = 0
+    while True:
+        path = (f"/s/{space}/api/saved_objects/_find?type=index-pattern"
+                f"&per_page=100&page={page}")
+        status, body = client.request("GET", path)
+        raise_for_status(status, body, what)
+        data = json.loads(body)
+        batch = data.get("saved_objects", [])
+        yield from batch
+        seen += len(batch)
+        total = data.get("total")
+        if (not batch or (total is not None and seen >= total)
+                or len(batch) < data.get("per_page", 100)):
+            return
+        page += 1
+
+
 def list_index_patterns(client, space):
-    path = f"/s/{space}/api/saved_objects/_find?type=index-pattern&per_page=100"
-    status, body = client.request("GET", path)
-    raise_for_status(status, body, "list index patterns")
-    data = json.loads(body)
-    return [so["attributes"]["title"] for so in data.get("saved_objects", [])]
+    return [so["attributes"]["title"]
+            for so in _iter_index_patterns(client, space, "list index patterns")]
 
 
 def resolve_index_pattern(client, space, pattern):
     """Return the data-view ID for a pattern title, or None."""
-    path = f"/s/{space}/api/saved_objects/_find?type=index-pattern&per_page=100"
-    status, body = client.request("GET", path)
-    raise_for_status(status, body, "resolve index pattern")
-    for so in json.loads(body).get("saved_objects", []):
+    for so in _iter_index_patterns(client, space, "resolve index pattern"):
         if so["attributes"].get("title") == pattern:
             return so["id"]
     return None
@@ -44,10 +58,7 @@ def list_fields(client, space, pattern):
             pass
 
     # fallback: index-pattern saved object fieldAttrs
-    path = f"/s/{space}/api/saved_objects/_find?type=index-pattern&per_page=100"
-    status, body = client.request("GET", path)
-    raise_for_status(status, body, "list fields")
-    for so in json.loads(body).get("saved_objects", []):
+    for so in _iter_index_patterns(client, space, "list fields"):
         if so["attributes"].get("title") == pattern:
             raw = so["attributes"].get("fieldAttrs", "{}")
             try:
